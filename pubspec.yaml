@@ -1,0 +1,55 @@
+name: gps_pointer
+description: "App Android per individuare la direzione dei radiofari"
+publish_to: 'none'
+version: 1.0.0+19
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  camera: 0.12.0+2
+  camera_android: 0.10.11
+  cupertino_icons: ^1.0.8
+  cross_file: 0.3.5+4
+  file_selector: 1.0.4
+  flutter_compass: 0.8.1
+  geolocator: 14.0.3
+  google_maps_flutter: 2.18.0
+  http: 1.6.0
+  path_provider: 2.1.5
+  share_plus: 13.3.0
+  sensors_plus: 7.1.0
+  url_launcher: 6.3.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_native_splash: 2.4.8
+  flutter_launcher_icons: 0.14.4
+
+flutter:
+  uses-material-design: true
+  assets:
+    - asset/fry_app.png
+    - asset/fry_pointer.png
+    - asset/fry_splash.png
+
+flutter_native_splash:
+  background_image: asset/fry_splash.png
+  android: true
+  ios: false
+  web: false
+  fullscreen: true
+  android_12:
+    color: "#00162F"
+    image: asset/fry_splash.png
+    icon_background_color: "#00162F"
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: asset/fry_app.png
+  min_sdk_android: 24

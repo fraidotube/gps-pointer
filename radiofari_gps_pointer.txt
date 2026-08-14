@@ -1,0 +1,11 @@
+GPS_POINTER_RADIOFARI;3
+esportato_utc;id_dispositivo;nome_dispositivo
+;;
+id;nome;latitudine;longitudine;quota_terreno_m;altezza_palo_m;fonte_quota;accuratezza_orizzontale_m;accuratezza_verticale_m
+CROCE-PALE-001;Croce di Pale;42.98903320062836;12.777068311321928;;0;;;
+MONTE-SUBASIO;Monte Subasio;43.057259;12.671109;;0;;;
+MONTE-PENNINO;Monte Pennino;43.10128;12.88863;;0;;;
+MONTE-SERANO;Monte Serano;42.866153;12.79951;;0;;;
+MONTE-BRUNETTE;Monte Brunette;42.88666;12.80478;;0;;;
+MONTE-TOLAGNA;Monte Tolagna;42.99182;12.94941;;0;;;
+MONTE-MAGGIORE;Monte Maggiore;42.826829;12.862678;;0;;;
