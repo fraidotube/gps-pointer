@@ -10,6 +10,7 @@ import 'package:sensors_plus/sensors_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../application/app_auth.dart';
+import '../application/app_visual_theme.dart';
 import '../application/catalogue_controller.dart';
 import '../application/pointing_controller.dart';
 import '../application/device_location_service.dart';
@@ -25,6 +26,7 @@ import 'simulations_screen.dart';
 final class GpsPointerApp extends StatelessWidget {
   const GpsPointerApp({
     required this.authController,
+    required this.visualThemeController,
     required this.controller,
     required this.pointingController,
     required this.locationService,
@@ -35,6 +37,7 @@ final class GpsPointerApp extends StatelessWidget {
   });
 
   final AppAuthController authController;
+  final AppVisualThemeController visualThemeController;
   final CatalogueController controller;
   final PointingController pointingController;
   final DeviceLocationService locationService;
@@ -43,41 +46,35 @@ final class GpsPointerApp extends StatelessWidget {
   final SimulationExportService simulationExportService;
 
   @override
-  Widget build(BuildContext context) => MaterialApp(
-    debugShowCheckedModeBanner: false,
-    title: 'GPS Pointer',
-    themeMode: ThemeMode.dark,
-    darkTheme: ThemeData(
-      brightness: Brightness.dark,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: const Color(0xFF19A7C4),
-        brightness: Brightness.dark,
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: visualThemeController,
+    builder: (context, _) => MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'GPS Pointer',
+      themeMode: ThemeMode.dark,
+      darkTheme: gpsPointerTheme(visualThemeController.theme),
+      home: ListenableBuilder(
+        listenable: controller,
+        builder: (context, _) {
+          final catalogueScreen = CatalogueScreen(
+            authController: authController,
+            visualThemeController: visualThemeController,
+            controller: controller,
+            pointingController: pointingController,
+            locationService: locationService,
+            profileElevationProvider: profileElevationProvider,
+            simulationRepository: simulationRepository,
+            simulationExportService: simulationExportService,
+          );
+          if (controller.deviceDisplayName == null) {
+            return catalogueScreen;
+          }
+          return AppAuthGate(
+            controller: authController,
+            child: catalogueScreen,
+          );
+        },
       ),
-      scaffoldBackgroundColor: const Color(0xFF07131C),
-      cardTheme: const CardThemeData(color: Color(0xFF10232E)),
-      appBarTheme: const AppBarTheme(
-        backgroundColor: Color(0xFF07131C),
-        foregroundColor: Colors.white,
-      ),
-      useMaterial3: true,
-    ),
-    home: ListenableBuilder(
-      listenable: controller,
-      builder: (context, _) {
-        final catalogueScreen = CatalogueScreen(
-          authController: authController,
-          controller: controller,
-          pointingController: pointingController,
-          locationService: locationService,
-          profileElevationProvider: profileElevationProvider,
-          simulationRepository: simulationRepository,
-          simulationExportService: simulationExportService,
-        );
-        if (controller.deviceDisplayName == null) {
-          return catalogueScreen;
-        }
-        return AppAuthGate(controller: authController, child: catalogueScreen);
-      },
     ),
   );
 }
@@ -85,6 +82,7 @@ final class GpsPointerApp extends StatelessWidget {
 final class CatalogueScreen extends StatefulWidget {
   const CatalogueScreen({
     required this.authController,
+    required this.visualThemeController,
     required this.controller,
     required this.pointingController,
     required this.locationService,
@@ -95,6 +93,7 @@ final class CatalogueScreen extends StatefulWidget {
   });
 
   final AppAuthController authController;
+  final AppVisualThemeController visualThemeController;
   final CatalogueController controller;
   final PointingController pointingController;
   final DeviceLocationService locationService;
@@ -114,6 +113,8 @@ final class _CatalogueScreenState extends State<CatalogueScreen> {
   bool _initialLocationRequested = false;
 
   AppAuthController get authController => widget.authController;
+  AppVisualThemeController get visualThemeController =>
+      widget.visualThemeController;
   CatalogueController get controller => widget.controller;
   PointingController get pointingController => widget.pointingController;
   DeviceLocationService get locationService => widget.locationService;
@@ -281,244 +282,414 @@ final class _CatalogueScreenState extends State<CatalogueScreen> {
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: controller,
-    builder: (context, _) => Scaffold(
-      appBar: PreferredSize(
+    builder: (context, _) {
+      final catalogueReady =
+          controller.catalogue != null && controller.deviceDisplayName != null;
+      return Scaffold(
+        appBar: catalogueReady ? null : _buildTopBar(context),
+        body: GpsThemeBackground(
+          child: catalogueReady
+              ? SafeArea(bottom: false, child: _body(context))
+              : SafeArea(child: _body(context)),
+        ),
+      );
+    },
+  );
+
+  PreferredSizeWidget _buildTopBar(BuildContext context) {
+    if (!visualThemeController.isRadarPro) {
+      return _buildClassicTopBar(context);
+    }
+    return _buildRadarProTopBar(context);
+  }
+
+  PreferredSizeWidget _buildClassicTopBar(BuildContext context) =>
+      PreferredSize(
         preferredSize: const Size.fromHeight(112),
-        child: SafeArea(
-          bottom: false,
-          child: Material(
-            color: const Color(0xFF07131C),
-            child: Column(
-              children: [
+        child: Material(
+          color: const Color(0xFF07131C),
+          child: Column(
+            children: [
+              SizedBox(
+                height: 64,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Row(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Image.asset(
+                          'asset/fry_app.png',
+                          width: 42,
+                          height: 42,
+                          fit: BoxFit.cover,
+                          filterQuality: FilterQuality.medium,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'GPS Pointer',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'App puntamento GPS',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Color(0xFF9FB6C2),
+                                fontSize: 12,
+                                letterSpacing: .2,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (controller.catalogue != null &&
+                  controller.deviceDisplayName != null)
+                _classicActionStrip(context),
+            ],
+          ),
+        ),
+      );
+
+  Widget _classicActionStrip(BuildContext context) => Container(
+    height: 48,
+    decoration: const BoxDecoration(
+      border: Border(
+        top: BorderSide(color: Color(0xFF16323F)),
+        bottom: BorderSide(color: Color(0xFF16323F)),
+      ),
+    ),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        IconButton(
+          tooltip: 'Aggiungi radiofaro',
+          onPressed: controller.busy
+              ? null
+              : () => _openAddBeaconDialog(context),
+          icon: const Icon(Icons.add_location_alt),
+        ),
+        IconButton(
+          tooltip: 'Esporta TXT',
+          onPressed: controller.busy ? null : controller.exportCatalogue,
+          icon: const Icon(Icons.ios_share),
+        ),
+        IconButton(
+          tooltip: 'Scarica catalogo dal server',
+          onPressed: controller.busy || authController.busy
+              ? null
+              : () => _downloadCatalogueFromServer(context),
+          icon: const Icon(Icons.cloud_download_outlined),
+        ),
+        IconButton(
+          tooltip: 'Simulazioni',
+          onPressed: () => _openSimulations(context),
+          icon: const Icon(Icons.analytics_outlined),
+        ),
+        IconButton(
+          tooltip: 'Impostazioni',
+          onPressed: () => _openSettings(context),
+          icon: const Icon(Icons.settings),
+        ),
+      ],
+    ),
+  );
+
+  PreferredSizeWidget _buildRadarProTopBar(BuildContext context) =>
+      PreferredSize(
+        preferredSize: const Size.fromHeight(186),
+        child: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF082C42), Color(0xFF061722), Color(0xFF041018)],
+            ),
+            border: Border(bottom: BorderSide(color: Color(0xFF2B6C88))),
+          ),
+          child: Column(
+            children: [
+              const SizedBox(
+                height: 76,
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(16, 10, 16, 6),
+                  child: Row(
+                    children: [
+                      _RadarHeaderMark(),
+                      SizedBox(width: 13),
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _RadarHeaderBrand(),
+                            SizedBox(height: 4),
+                            Text(
+                              'PUNTA · MISURA · CONNETTI',
+                              style: TextStyle(
+                                color: Color(0xFF78DCEE),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1.25,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(Icons.sensors, color: Color(0xFFFFA026), size: 26),
+                    ],
+                  ),
+                ),
+              ),
+              if (controller.catalogue != null &&
+                  controller.deviceDisplayName != null)
                 SizedBox(
-                  height: 64,
+                  height: 108,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
                     child: Row(
                       children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: Image.asset(
-                            'asset/fry_app.png',
-                            width: 42,
-                            height: 42,
-                            fit: BoxFit.cover,
-                            filterQuality: FilterQuality.medium,
+                        Expanded(
+                          child: _RadarActionTile(
+                            icon: Icons.add_location_alt_outlined,
+                            label: 'Aggiungi',
+                            onTap: controller.busy
+                                ? null
+                                : () => _openAddBeaconDialog(context),
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        const Expanded(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'GPS Pointer',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              SizedBox(height: 2),
-                              Text(
-                                'App puntamento GPS',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: Color(0xFF9FB6C2),
-                                  fontSize: 12,
-                                  letterSpacing: .2,
-                                ),
-                              ),
-                            ],
+                        const SizedBox(width: 7),
+                        Expanded(
+                          child: _RadarActionTile(
+                            icon: Icons.ios_share_outlined,
+                            label: 'Esporta',
+                            onTap: controller.busy
+                                ? null
+                                : controller.exportCatalogue,
+                          ),
+                        ),
+                        const SizedBox(width: 7),
+                        Expanded(
+                          child: _RadarActionTile(
+                            icon: Icons.cloud_download_outlined,
+                            label: 'Server',
+                            onTap: controller.busy || authController.busy
+                                ? null
+                                : () => _downloadCatalogueFromServer(context),
+                          ),
+                        ),
+                        const SizedBox(width: 7),
+                        Expanded(
+                          child: _RadarActionTile(
+                            icon: Icons.analytics_outlined,
+                            label: 'Simulazioni',
+                            onTap: () => _openSimulations(context),
+                          ),
+                        ),
+                        const SizedBox(width: 7),
+                        Expanded(
+                          child: _RadarActionTile(
+                            icon: Icons.tune,
+                            label: 'Impostazioni',
+                            onTap: () => _openSettings(context),
                           ),
                         ),
                       ],
                     ),
                   ),
                 ),
-                if (controller.catalogue != null &&
-                    controller.deviceDisplayName != null)
-                  Container(
-                    height: 48,
-                    decoration: const BoxDecoration(
-                      border: Border(
-                        top: BorderSide(color: Color(0xFF16323F)),
-                        bottom: BorderSide(color: Color(0xFF16323F)),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        IconButton(
-                          tooltip: 'Aggiungi radiofaro',
-                          onPressed: controller.busy
-                              ? null
-                              : () => _openAddBeaconDialog(context),
-                          icon: const Icon(Icons.add_location_alt),
-                        ),
-                        IconButton(
-                          tooltip: 'Esporta TXT',
-                          onPressed: controller.busy
-                              ? null
-                              : controller.exportCatalogue,
-                          icon: const Icon(Icons.ios_share),
-                        ),
-                        IconButton(
-                          tooltip: 'Scarica catalogo dal server',
-                          onPressed: controller.busy || authController.busy
-                              ? null
-                              : () => _downloadCatalogueFromServer(context),
-                          icon: const Icon(Icons.cloud_download_outlined),
-                        ),
-                        IconButton(
-                          tooltip: 'Simulazioni',
-                          onPressed: () => Navigator.of(context).push<void>(
-                            MaterialPageRoute<void>(
-                              builder: (_) => SimulationsScreen(
-                                repository: simulationRepository,
-                                exportService: simulationExportService,
-                                deviceId: controller.installationId,
-                                deviceName: controller.deviceDisplayName!,
-                              ),
-                            ),
-                          ),
-                          icon: const Icon(Icons.analytics_outlined),
-                        ),
-                        IconButton(
-                          tooltip: 'Impostazioni',
-                          onPressed: () => _openSettings(context),
-                          icon: const Icon(Icons.settings),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
+            ],
           ),
         ),
+      );
+
+  void _openSimulations(BuildContext context) {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => SimulationsScreen(
+          repository: simulationRepository,
+          exportService: simulationExportService,
+          deviceId: controller.installationId,
+          deviceName: controller.deviceDisplayName!,
+        ),
       ),
-      body: SafeArea(child: _body(context)),
-    ),
-  );
+    );
+  }
 
   Widget _body(BuildContext context) {
     final catalogue = controller.catalogue;
-
-    // Durante l'inizializzazione iniziale non abbiamo ancora né identità né
-    // catalogo: qui il loader a pagina intera è corretto.
     if (controller.busy &&
         controller.deviceDisplayName == null &&
         catalogue == null) {
       return const Center(child: CircularProgressIndicator());
     }
-
     if (controller.deviceDisplayName == null) {
       return _DeviceSetup(controller: controller);
     }
-
-    // IMPORTANTE: quando l'utente apre il file picker su una installazione
-    // senza catalogo, importCatalogue() mette controller.busy=true.
-    // _FirstSetup deve restare montata mentre il picker Android è aperto,
-    // altrimenti il BuildContext usato dalla callback di approvazione viene
-    // smontato e l'import viene interpretato come "annullato".
     if (catalogue == null) {
       return _FirstSetup(controller: controller);
     }
     _requestInitialLocationOnce();
-    return Column(
-      children: [
-        _Messages(controller: controller),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Text('${catalogue.beacons.length} radiofari'),
+    return CustomScrollView(
+      key: const PageStorageKey<String>('catalogue-scroll'),
+      slivers: [
+        SliverToBoxAdapter(
+          child: SizedBox(
+            height: visualThemeController.isRadarPro ? 186 : 112,
+            child: _buildTopBar(context),
           ),
         ),
-        if (controller.busy) const LinearProgressIndicator(),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-          child: TextField(
-            controller: _searchController,
-            onChanged: (value) => setState(() => _query = value),
-            decoration: InputDecoration(
-              hintText: 'Cerca per nome, ID o coordinate',
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: _query.isEmpty
-                  ? null
-                  : IconButton(
-                      tooltip: 'Cancella ricerca',
-                      onPressed: () {
-                        _searchController.clear();
-                        setState(() => _query = '');
-                      },
-                      icon: const Icon(Icons.clear),
-                    ),
-              border: const OutlineInputBorder(),
+        SliverToBoxAdapter(child: _Messages(controller: controller)),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: visualThemeController.isRadarPro
+                  ? Row(
+                      children: [
+                        const Icon(
+                          Icons.cell_tower,
+                          color: Color(0xFF79E2F3),
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'CATALOGO RADIOFARI',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: .7,
+                              ),
+                        ),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0B2A3A),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(color: const Color(0xFF2D6F8B)),
+                          ),
+                          child: Text(
+                            '${catalogue.beacons.length}',
+                            style: const TextStyle(
+                              color: Color(0xFFFFA026),
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : Text('${catalogue.beacons.length} radiofari'),
             ),
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                FilterChip(
-                  selected: !_nearbyOnly,
-                  label: const Text('Tutti'),
-                  avatar: const Icon(Icons.public, size: 18),
-                  onSelected: controller.busy
-                      ? null
-                      : (selected) {
-                          if (selected) setState(() => _nearbyOnly = false);
+        if (controller.busy)
+          const SliverToBoxAdapter(child: LinearProgressIndicator()),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+            child: TextField(
+              controller: _searchController,
+              onChanged: (value) => setState(() => _query = value),
+              decoration: InputDecoration(
+                hintText: 'Cerca per nome, ID o coordinate',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _query.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: 'Cancella ricerca',
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _query = '');
                         },
-                ),
-                FilterChip(
-                  selected: _nearbyOnly,
-                  label: Text('Entro ${_formatRadius(_radiusKm)} km'),
-                  avatar: const Icon(Icons.near_me, size: 18),
-                  onSelected: controller.busy
-                      ? null
-                      : (selected) async {
-                          if (selected) {
-                            await _enableNearbyFilter();
-                          } else if (mounted) {
-                            setState(() => _nearbyOnly = false);
-                          }
-                        },
-                ),
-                IconButton.outlined(
-                  tooltip: 'Imposta raggio',
-                  onPressed: controller.busy ? null : _chooseRadius,
-                  icon: const Icon(Icons.tune),
-                ),
-                if (_nearbyOnly)
-                  IconButton.outlined(
-                    tooltip: 'Aggiorna posizione filtro',
-                    onPressed: controller.busy
+                        icon: const Icon(Icons.clear),
+                      ),
+                border: const OutlineInputBorder(),
+              ),
+            ),
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  FilterChip(
+                    selected: !_nearbyOnly,
+                    label: const Text('Tutti'),
+                    avatar: const Icon(Icons.public, size: 18),
+                    onSelected: controller.busy
                         ? null
-                        : () => _enableNearbyFilter(forceRefresh: true),
-                    icon: const Icon(Icons.my_location),
+                        : (selected) {
+                            if (selected) setState(() => _nearbyOnly = false);
+                          },
                   ),
-                if (controller.catalogueFilterLocation != null)
-                  Chip(
-                    avatar: const Icon(Icons.gps_fixed, size: 18),
-                    label: Text(
-                      'GPS ±${controller.catalogueFilterLocation!.horizontalAccuracyMeters.toStringAsFixed(0)} m',
+                  FilterChip(
+                    selected: _nearbyOnly,
+                    label: Text('Entro ${_formatRadius(_radiusKm)} km'),
+                    avatar: const Icon(Icons.near_me, size: 18),
+                    onSelected: controller.busy
+                        ? null
+                        : (selected) async {
+                            if (selected) {
+                              await _enableNearbyFilter();
+                            } else if (mounted) {
+                              setState(() => _nearbyOnly = false);
+                            }
+                          },
+                  ),
+                  IconButton.outlined(
+                    tooltip: 'Imposta raggio',
+                    onPressed: controller.busy ? null : _chooseRadius,
+                    icon: const Icon(Icons.tune),
+                  ),
+                  if (_nearbyOnly)
+                    IconButton.outlined(
+                      tooltip: 'Aggiorna posizione filtro',
+                      onPressed: controller.busy
+                          ? null
+                          : () => _enableNearbyFilter(forceRefresh: true),
+                      icon: const Icon(Icons.my_location),
                     ),
-                  ),
-              ],
+                  if (controller.catalogueFilterLocation != null)
+                    Chip(
+                      avatar: const Icon(Icons.gps_fixed, size: 18),
+                      label: Text(
+                        'GPS ±${controller.catalogueFilterLocation!.horizontalAccuracyMeters.toStringAsFixed(0)} m',
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
-        Expanded(child: _beaconList(catalogue)),
+        _beaconListSliver(catalogue),
       ],
     );
   }
@@ -535,7 +706,7 @@ final class _CatalogueScreenState extends State<CatalogueScreen> {
     });
   }
 
-  Widget _beaconList(RadioBeaconCatalogue catalogue) {
+  Widget _beaconListSliver(RadioBeaconCatalogue catalogue) {
     final origin = controller.catalogueFilterPosition;
     final filtered = RadioBeaconCatalogueSearch.search(
       beacons: catalogue.beacons,
@@ -546,29 +717,44 @@ final class _CatalogueScreenState extends State<CatalogueScreen> {
           : null,
     );
     if (filtered.isEmpty) {
-      return Center(
-        child: Text(
-          _nearbyOnly
-              ? 'Nessun radiofaro entro ${_formatRadius(_radiusKm)} km.'
-              : 'Nessun radiofaro trovato.',
-          textAlign: TextAlign.center,
+      return SliverFillRemaining(
+        hasScrollBody: false,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              _nearbyOnly
+                  ? 'Nessun radiofaro entro ${_formatRadius(_radiusKm)} km.'
+                  : 'Nessun radiofaro trovato.',
+              textAlign: TextAlign.center,
+            ),
+          ),
         ),
       );
     }
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: filtered.length,
-      itemBuilder: (context, index) => _BeaconCard(
-        beacon: filtered[index].beacon,
-        distanceFromFilterMeters: filtered[index].distanceMeters,
-        controller: controller,
-        pointingController: pointingController,
-        locationService: locationService,
-        profileElevationProvider: profileElevationProvider,
-        simulationRepository: simulationRepository,
-        simulationExportService: simulationExportService,
-        deviceId: controller.installationId,
-        deviceName: controller.deviceDisplayName!,
+    return SliverPadding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (context, index) => Padding(
+            padding: EdgeInsets.only(
+              bottom: index == filtered.length - 1 ? 0 : 12,
+            ),
+            child: _BeaconCard(
+              beacon: filtered[index].beacon,
+              distanceFromFilterMeters: filtered[index].distanceMeters,
+              controller: controller,
+              pointingController: pointingController,
+              locationService: locationService,
+              profileElevationProvider: profileElevationProvider,
+              simulationRepository: simulationRepository,
+              simulationExportService: simulationExportService,
+              deviceId: controller.installationId,
+              deviceName: controller.deviceDisplayName!,
+            ),
+          ),
+          childCount: filtered.length,
+        ),
       ),
     );
   }
@@ -617,19 +803,139 @@ final class _CatalogueScreenState extends State<CatalogueScreen> {
           builder: (_) => _CatalogueSettingsScreen(
             controller: controller,
             authController: authController,
+            visualThemeController: visualThemeController,
           ),
         ),
       );
+}
+
+final class _RadarHeaderMark extends StatelessWidget {
+  const _RadarHeaderMark();
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 52,
+    height: 52,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      color: const Color(0xFF071B28),
+      border: Border.all(color: const Color(0xFF43CFE8), width: 1.5),
+      boxShadow: const [
+        BoxShadow(color: Color(0x4422C8E7), blurRadius: 14, spreadRadius: 1),
+      ],
+    ),
+    child: const Icon(Icons.explore, color: Color(0xFFFFA026), size: 34),
+  );
+}
+
+final class _RadarHeaderBrand extends StatelessWidget {
+  const _RadarHeaderBrand();
+
+  @override
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.end,
+    children: [
+      const Text(
+        'GPS',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 25,
+          height: 1,
+          fontWeight: FontWeight.w900,
+          fontStyle: FontStyle.italic,
+          letterSpacing: .8,
+        ),
+      ),
+      const SizedBox(width: 7),
+      const Text(
+        'Pointer',
+        style: TextStyle(
+          color: Color(0xFF54D8EF),
+          fontSize: 20,
+          height: 1,
+          fontWeight: FontWeight.w700,
+          fontStyle: FontStyle.italic,
+        ),
+      ),
+    ],
+  );
+}
+
+final class _RadarActionTile extends StatelessWidget {
+  const _RadarActionTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.transparent,
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(15),
+      child: Ink(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(15),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF123A50), Color(0xFF0A2230)],
+          ),
+          border: Border.all(color: const Color(0xFF326B84)),
+          boxShadow: const [
+            BoxShadow(color: Color(0x2200D5F2), blurRadius: 10),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                color: onTap == null
+                    ? const Color(0xFF50707D)
+                    : const Color(0xFF8BEAF7),
+                size: 23,
+              ),
+              const SizedBox(height: 6),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  style: TextStyle(
+                    color: onTap == null
+                        ? const Color(0xFF607984)
+                        : Colors.white,
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 final class _CatalogueSettingsScreen extends StatelessWidget {
   const _CatalogueSettingsScreen({
     required this.controller,
     required this.authController,
+    required this.visualThemeController,
   });
 
   final CatalogueController controller;
   final AppAuthController authController;
+  final AppVisualThemeController visualThemeController;
 
   static final Uri _serverCatalogueUri = Uri.parse(
     'https://gpspointer.ernet.it:9443/api/v1/catalog/export',
@@ -824,130 +1130,143 @@ final class _CatalogueSettingsScreen extends StatelessWidget {
       final catalogue = controller.catalogue;
       return Scaffold(
         appBar: AppBar(title: const Text('Impostazioni')),
-        body: SafeArea(
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              _Messages(controller: controller),
-              if (controller.busy) const LinearProgressIndicator(),
-              const SizedBox(height: 8),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Account',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        authController.user?.displayName ??
-                            authController.savedDisplayName ??
-                            'Utente GPS Pointer',
-                      ),
-                      if ((authController.user?.username ??
-                              authController.savedUsername) !=
-                          null)
+        body: GpsThemeBackground(
+          child: SafeArea(
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                _Messages(controller: controller),
+                if (controller.busy) const LinearProgressIndicator(),
+                const SizedBox(height: 8),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                         Text(
-                          authController.user?.username ??
-                              authController.savedUsername!,
+                          'Account',
+                          style: Theme.of(context).textTheme.titleLarge,
                         ),
-                      const SizedBox(height: 12),
-                      OutlinedButton.icon(
-                        onPressed: authController.busy
-                            ? null
-                            : () async {
-                                await authController.logout();
-                                if (context.mounted) {
-                                  Navigator.of(context).pop();
-                                }
-                              },
-                        icon: const Icon(Icons.logout),
-                        label: const Text('Esci dall’account'),
-                      ),
-                    ],
+                        const SizedBox(height: 10),
+                        Text(
+                          authController.user?.displayName ??
+                              authController.savedDisplayName ??
+                              'Utente GPS Pointer',
+                        ),
+                        if ((authController.user?.username ??
+                                authController.savedUsername) !=
+                            null)
+                          Text(
+                            authController.user?.username ??
+                                authController.savedUsername!,
+                          ),
+                        const SizedBox(height: 12),
+                        OutlinedButton.icon(
+                          onPressed: authController.busy
+                              ? null
+                              : () async {
+                                  await authController.logout();
+                                  if (context.mounted) {
+                                    Navigator.of(context).pop();
+                                  }
+                                },
+                          icon: const Icon(Icons.logout),
+                          label: const Text('Esci dall’account'),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Archivio radiofari',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        catalogue == null
-                            ? 'Nessun archivio caricato'
-                            : 'File: ${catalogue.sourceFileName}',
-                      ),
-                      if (catalogue != null)
-                        Text('${catalogue.beacons.length} radiofari caricati'),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Nome dispositivo: '
-                        '${controller.deviceDisplayName ?? 'non configurato'}',
-                      ),
-                      Text('ID tecnico: ${controller.installationId}'),
-                      const SizedBox(height: 8),
-                      OutlinedButton.icon(
-                        onPressed: controller.busy
-                            ? null
-                            : () => _editDeviceName(context, controller),
-                        icon: const Icon(Icons.edit),
-                        label: const Text('Modifica nome dispositivo'),
-                      ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'Il nuovo TXT viene validato completamente prima del '
-                        'salvataggio. Se contiene errori, l’archivio corrente '
-                        'non viene modificato.',
-                      ),
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton.icon(
-                          onPressed: controller.busy || authController.busy
-                              ? null
-                              : () => _downloadCatalogueFromServer(context),
-                          icon: const Icon(Icons.cloud_download_outlined),
-                          label: const Text('Scarica catalogo dal server'),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: controller.busy
-                              ? null
-                              : () => _importCatalogue(context, controller),
-                          icon: const Icon(Icons.sync),
-                          label: const Text('Sostituisci file TXT manualmente'),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: controller.busy
-                              ? null
-                              : () => _confirmAndClearCatalogue(context),
-                          icon: const Icon(Icons.delete_sweep_outlined),
-                          label: const Text('Azzera lista radiofari'),
-                        ),
-                      ),
-                    ],
+                const SizedBox(height: 12),
+                ListenableBuilder(
+                  listenable: visualThemeController,
+                  builder: (context, _) => VisualThemeSelectorCard(
+                    controller: visualThemeController,
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 12),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Archivio radiofari',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          catalogue == null
+                              ? 'Nessun archivio caricato'
+                              : 'File: ${catalogue.sourceFileName}',
+                        ),
+                        if (catalogue != null)
+                          Text(
+                            '${catalogue.beacons.length} radiofari caricati',
+                          ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Nome dispositivo: '
+                          '${controller.deviceDisplayName ?? 'non configurato'}',
+                        ),
+                        Text('ID tecnico: ${controller.installationId}'),
+                        const SizedBox(height: 8),
+                        OutlinedButton.icon(
+                          onPressed: controller.busy
+                              ? null
+                              : () => _editDeviceName(context, controller),
+                          icon: const Icon(Icons.edit),
+                          label: const Text('Modifica nome dispositivo'),
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Il nuovo TXT viene validato completamente prima del '
+                          'salvataggio. Se contiene errori, l’archivio corrente '
+                          'non viene modificato.',
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: controller.busy || authController.busy
+                                ? null
+                                : () => _downloadCatalogueFromServer(context),
+                            icon: const Icon(Icons.cloud_download_outlined),
+                            label: const Text('Scarica catalogo dal server'),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: controller.busy
+                                ? null
+                                : () => _importCatalogue(context, controller),
+                            icon: const Icon(Icons.sync),
+                            label: const Text(
+                              'Sostituisci file TXT manualmente',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: controller.busy
+                                ? null
+                                : () => _confirmAndClearCatalogue(context),
+                            icon: const Icon(Icons.delete_sweep_outlined),
+                            label: const Text('Azzera lista radiofari'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -3070,32 +3389,96 @@ final class _GlassPanel extends StatelessWidget {
   );
 }
 
-final class _Messages extends StatelessWidget {
+final class _Messages extends StatefulWidget {
   const _Messages({required this.controller});
 
   final CatalogueController controller;
 
   @override
+  State<_Messages> createState() => _MessagesState();
+}
+
+final class _MessagesState extends State<_Messages> {
+  Timer? _noticeTimer;
+  String? _hiddenNotice;
+  String? _lastNotice;
+
+  @override
+  void initState() {
+    super.initState();
+    _lastNotice = widget.controller.noticeMessage;
+    widget.controller.addListener(_handleControllerChanged);
+    _scheduleNoticeAutoHide(_lastNotice);
+  }
+
+  @override
+  void didUpdateWidget(covariant _Messages oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.controller, widget.controller)) {
+      oldWidget.controller.removeListener(_handleControllerChanged);
+      widget.controller.addListener(_handleControllerChanged);
+      _lastNotice = widget.controller.noticeMessage;
+      _scheduleNoticeAutoHide(_lastNotice);
+    }
+  }
+
+  void _handleControllerChanged() {
+    final notice = widget.controller.noticeMessage;
+    if (notice == _lastNotice) return;
+    _lastNotice = notice;
+    _scheduleNoticeAutoHide(notice);
+  }
+
+  void _scheduleNoticeAutoHide(String? notice) {
+    _noticeTimer?.cancel();
+    _hiddenNotice = null;
+    if (notice == null) return;
+
+    final duration = notice == 'Posizione per distanze e ordinamento acquisita.'
+        ? const Duration(milliseconds: 450)
+        : const Duration(seconds: 2);
+
+    _noticeTimer = Timer(duration, () {
+      if (!mounted) return;
+      setState(() => _hiddenNotice = notice);
+    });
+  }
+
+  @override
+  void dispose() {
+    _noticeTimer?.cancel();
+    widget.controller.removeListener(_handleControllerChanged);
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final error = controller.errorMessage;
-    final notice = controller.noticeMessage;
+    final error = widget.controller.errorMessage;
+    final rawNotice = widget.controller.noticeMessage;
+    final notice = rawNotice == _hiddenNotice ? null : rawNotice;
     if (error == null && notice == null) return const SizedBox.shrink();
+
     final colors = Theme.of(context).colorScheme;
     final isError = error != null;
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isError ? colors.errorContainer : colors.secondaryContainer,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(error ?? notice!),
-          for (final issue in controller.issues.take(8)) Text('• $issue'),
-        ],
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 120),
+      child: Container(
+        key: ValueKey<String>(error ?? notice!),
+        width: double.infinity,
+        margin: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isError ? colors.errorContainer : colors.secondaryContainer,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(error ?? notice!),
+            for (final issue in widget.controller.issues.take(8))
+              Text('• $issue'),
+          ],
+        ),
       ),
     );
   }

@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gps_pointer/application/app_auth.dart';
+import 'package:gps_pointer/application/app_visual_theme.dart';
 import 'package:gps_pointer/application/catalogue_controller.dart';
 import 'package:gps_pointer/application/catalogue_export_service.dart';
 import 'package:gps_pointer/application/device_installation_id_service.dart';
@@ -34,6 +36,7 @@ void main() {
     await tester.pumpWidget(
       GpsPointerApp(
         authController: authController,
+        visualThemeController: _visualThemeController(),
         controller: controller,
         locationService: _UnusedLocation(),
         profileElevationProvider: _UnusedProfileElevation(),
@@ -73,6 +76,7 @@ void main() {
         MaterialApp(
           home: CatalogueScreen(
             authController: authController,
+            visualThemeController: _visualThemeController(),
             controller: controller,
             locationService: _UnusedLocation(),
             profileElevationProvider: _UnusedProfileElevation(),
@@ -94,8 +98,6 @@ void main() {
       await tester.tap(find.text('Scegli file TXT v3'));
       await tester.pump();
 
-      // Il controller è busy mentre il picker è ancora aperto, ma la schermata
-      // deve restare nello tree: è il bug trovato nel field test Release 2.
       expect(controller.busy, isTrue);
       expect(find.text('Importa l’archivio radiofari v3'), findsOneWidget);
       expect(find.text('Scegli file TXT v3'), findsOneWidget);
@@ -144,6 +146,7 @@ void main() {
       MaterialApp(
         home: CatalogueScreen(
           authController: authController,
+          visualThemeController: _visualThemeController(),
           controller: controller,
           locationService: location,
           profileElevationProvider: _UnusedProfileElevation(),
@@ -165,6 +168,13 @@ void main() {
   });
 }
 
+AppVisualThemeController _visualThemeController() => AppVisualThemeController(
+  storageFile: File(
+    '${Directory.systemTemp.path}/gps_pointer_widget_visual_theme.txt',
+  ),
+  launcherIconBridge: _WidgetLauncherIconBridge(),
+);
+
 Future<AppAuthController> _signedInAuthController() async {
   final controller = AppAuthController(
     api: _WidgetAuthApi(),
@@ -172,7 +182,7 @@ Future<AppAuthController> _signedInAuthController() async {
     deviceUnlock: _WidgetUnlock(),
     deviceId: 'GPSP-TEST-DEVICE',
     deviceNameProvider: () => 'Samsung Test',
-    appVersion: '1.0.0+21',
+    appVersion: '1.0.0+22',
   );
   await controller.initialize();
   final ok = await controller.login(
@@ -184,6 +194,11 @@ Future<AppAuthController> _signedInAuthController() async {
     throw StateError('Impossibile preparare authController per widget test.');
   }
   return controller;
+}
+
+final class _WidgetLauncherIconBridge implements LauncherIconBridge {
+  @override
+  Future<void> apply(AppVisualTheme theme) async {}
 }
 
 final class _WidgetAuthApi implements AppAuthApi {

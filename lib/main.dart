@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import 'application/app_auth.dart';
+import 'application/app_visual_theme.dart';
 import 'application/catalogue_controller.dart';
 import 'application/catalogue_export_service.dart';
 import 'application/pointing_controller.dart';
@@ -20,12 +21,17 @@ import 'infrastructure/open_meteo_elevation_provider.dart';
 import 'infrastructure/open_meteo_profile_elevation_provider.dart';
 import 'infrastructure/system_radio_beacon_file_picker.dart';
 import 'presentation/gps_pointer_app.dart';
+import 'presentation/launch_splash.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final supportDirectory = await getApplicationSupportDirectory();
   final packageInfo = await PackageInfo.fromPlatform();
   final appVersion = '${packageInfo.version}+${packageInfo.buildNumber}';
+  final visualThemeController = AppVisualThemeController(
+    storageFile: File('${supportDirectory.path}/gps_pointer_visual_theme.txt'),
+  );
+  await visualThemeController.initialize();
   final repository = JsonRadioBeaconRepository(
     File('${supportDirectory.path}/gps_pointer_catalogue.json'),
   );
@@ -68,17 +74,21 @@ Future<void> main() async {
     appVersion: appVersion,
   );
   runApp(
-    GpsPointerApp(
-      authController: authController,
-      controller: controller,
-      locationService: locationService,
-      profileElevationProvider: profileElevationProvider,
-      simulationRepository: simulationRepository,
-      simulationExportService: ShareSimulationExportService(),
-      pointingController: PointingController(
+    LaunchSplashGate(
+      theme: visualThemeController.theme,
+      child: GpsPointerApp(
+        authController: authController,
+        visualThemeController: visualThemeController,
+        controller: controller,
         locationService: locationService,
-        elevationProvider: elevationProvider,
-        orientationService: AndroidDeviceOrientationService(),
+        profileElevationProvider: profileElevationProvider,
+        simulationRepository: simulationRepository,
+        simulationExportService: ShareSimulationExportService(),
+        pointingController: PointingController(
+          locationService: locationService,
+          elevationProvider: elevationProvider,
+          orientationService: AndroidDeviceOrientationService(),
+        ),
       ),
     ),
   );
