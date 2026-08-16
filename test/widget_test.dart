@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gps_pointer/application/app_auth.dart';
 import 'package:gps_pointer/application/catalogue_controller.dart';
@@ -48,6 +51,63 @@ void main() {
     expect(find.text('Imposta nome dispositivo'), findsOneWidget);
   });
 
+  testWidgets(
+    'first setup stays mounted while the Android file picker is open',
+    (tester) async {
+      final picker = _BlockingPicker();
+      final controller = CatalogueController(
+        importService: RadioBeaconImportService(
+          parser: RadioBeaconFileParser(),
+          repository: InMemoryRadioBeaconRepository(),
+        ),
+        filePicker: picker,
+        elevationService: RadioBeaconElevationService(_UnusedElevation()),
+        locationService: _UnusedLocation(),
+        exportService: _UnusedExport(),
+        identityService: _FakeIdentity(displayName: 'Samsung Test'),
+      );
+      await controller.initialize();
+      final authController = await _signedInAuthController();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: CatalogueScreen(
+            authController: authController,
+            controller: controller,
+            locationService: _UnusedLocation(),
+            profileElevationProvider: _UnusedProfileElevation(),
+            simulationRepository: _MemorySimulationRepository(),
+            simulationExportService: _UnusedSimulationExport(),
+            pointingController: PointingController(
+              locationService: _UnusedLocation(),
+              elevationProvider: _UnusedElevation(),
+              orientationService: _UnusedOrientation(),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Importa l’archivio radiofari v3'), findsOneWidget);
+      expect(find.text('Scegli file TXT v3'), findsOneWidget);
+
+      await tester.tap(find.text('Scegli file TXT v3'));
+      await tester.pump();
+
+      // Il controller è busy mentre il picker è ancora aperto, ma la schermata
+      // deve restare nello tree: è il bug trovato nel field test Release 2.
+      expect(controller.busy, isTrue);
+      expect(find.text('Importa l’archivio radiofari v3'), findsOneWidget);
+      expect(find.text('Scegli file TXT v3'), findsOneWidget);
+
+      picker.cancel();
+      await tester.pumpAndSettle();
+
+      expect(controller.busy, isFalse);
+      expect(find.text('Importa l’archivio radiofari v3'), findsOneWidget);
+    },
+  );
+
   testWidgets('an existing catalogue acquires GPS automatically', (
     tester,
   ) async {
@@ -81,17 +141,19 @@ void main() {
     final authController = await _signedInAuthController();
 
     await tester.pumpWidget(
-      GpsPointerApp(
-        authController: authController,
-        controller: controller,
-        locationService: location,
-        profileElevationProvider: _UnusedProfileElevation(),
-        simulationRepository: _MemorySimulationRepository(),
-        simulationExportService: _UnusedSimulationExport(),
-        pointingController: PointingController(
+      MaterialApp(
+        home: CatalogueScreen(
+          authController: authController,
+          controller: controller,
           locationService: location,
-          elevationProvider: _UnusedElevation(),
-          orientationService: _UnusedOrientation(),
+          profileElevationProvider: _UnusedProfileElevation(),
+          simulationRepository: _MemorySimulationRepository(),
+          simulationExportService: _UnusedSimulationExport(),
+          pointingController: PointingController(
+            locationService: location,
+            elevationProvider: _UnusedElevation(),
+            orientationService: _UnusedOrientation(),
+          ),
         ),
       ),
     );
@@ -99,7 +161,96 @@ void main() {
 
     expect(location.calls, 1);
     expect(controller.catalogueFilterPosition, isNotNull);
+    expect(find.textContaining('Distanza dalla posizione:'), findsOneWidget);
   });
+}
+
+Future<AppAuthController> _signedInAuthController() async {
+  final controller = AppAuthController(
+    api: _WidgetAuthApi(),
+    store: _WidgetAuthStore(),
+    deviceUnlock: _WidgetUnlock(),
+    deviceId: 'GPSP-TEST-DEVICE',
+    deviceNameProvider: () => 'Samsung Test',
+    appVersion: '1.0.0+21',
+  );
+  await controller.initialize();
+  final ok = await controller.login(
+    username: 'test',
+    password: 'test-password',
+    enableQuickUnlock: false,
+  );
+  if (!ok) {
+    throw StateError('Impossibile preparare authController per widget test.');
+  }
+  return controller;
+}
+
+final class _WidgetAuthApi implements AppAuthApi {
+  @override
+  Future<(AppAuthTokens, AppAuthUser)> login({
+    required String username,
+    required String password,
+    required String deviceId,
+    required String deviceName,
+    required String appVersion,
+  }) async => (
+    const AppAuthTokens(
+      accessToken: 'widget-access',
+      refreshToken: 'widget-refresh',
+    ),
+    const AppAuthUser(
+      username: 'test',
+      displayName: 'Widget Test',
+      role: 'admin',
+      roleLabel: 'Amministratore',
+    ),
+  );
+
+  @override
+  Future<AppAuthTokens> refresh({
+    required String refreshToken,
+    required String deviceId,
+    required String appVersion,
+  }) async => const AppAuthTokens(
+    accessToken: 'widget-access-2',
+    refreshToken: 'widget-refresh-2',
+  );
+
+  @override
+  Future<void> logout(String accessToken) async {}
+}
+
+final class _WidgetAuthStore implements AppAuthStore {
+  @override
+  Future<void> clear() async {}
+
+  @override
+  Future<String?> readDisplayName() async => null;
+
+  @override
+  Future<bool> readQuickUnlockEnabled() async => false;
+
+  @override
+  Future<String?> readRefreshToken() async => null;
+
+  @override
+  Future<String?> readUsername() async => null;
+
+  @override
+  Future<void> save({
+    required String refreshToken,
+    required AppAuthUser user,
+    required bool quickUnlockEnabled,
+  }) async {}
+}
+
+final class _WidgetUnlock implements DeviceUnlockService {
+  @override
+  Future<bool> authenticate() async => true;
+
+  @override
+  Future<bool> isAvailable() async => false;
 }
 
 final class _FakeIdentity implements DeviceInstallationIdService {
@@ -120,6 +271,20 @@ final class _FakeIdentity implements DeviceInstallationIdService {
         installationId: identity.installationId,
         displayName: displayName,
       );
+}
+
+final class _BlockingPicker implements RadioBeaconFilePicker {
+  final Completer<SelectedRadioBeaconFile?> _completer =
+      Completer<SelectedRadioBeaconFile?>();
+
+  void cancel() {
+    if (!_completer.isCompleted) {
+      _completer.complete(null);
+    }
+  }
+
+  @override
+  Future<SelectedRadioBeaconFile?> selectFile() => _completer.future;
 }
 
 final class _CancelledPicker implements RadioBeaconFilePicker {
@@ -195,104 +360,4 @@ final class _UnusedSimulationExport implements SimulationExportService {
     required String deviceId,
     required String deviceName,
   }) async {}
-}
-
-Future<AppAuthController> _signedInAuthController() async {
-  final controller = AppAuthController(
-    api: _WidgetAuthApi(),
-    store: _WidgetAuthStore(),
-    deviceUnlock: _WidgetUnlock(),
-    deviceId: 'TEST-WIDGET-DEVICE',
-    deviceNameProvider: () => 'Samsung Test',
-    appVersion: '1.0.0+20',
-  );
-  await controller.initialize();
-  await controller.login(
-    username: 'widget-test',
-    password: 'widget-test-password',
-    enableQuickUnlock: false,
-  );
-  return controller;
-}
-
-final class _WidgetAuthApi implements AppAuthApi {
-  @override
-  Future<(AppAuthTokens, AppAuthUser)> login({
-    required String username,
-    required String password,
-    required String deviceId,
-    required String deviceName,
-    required String appVersion,
-  }) async => (
-    const AppAuthTokens(
-      accessToken: 'widget-access',
-      refreshToken: 'widget-refresh',
-    ),
-    const AppAuthUser(
-      username: 'widget-test',
-      displayName: 'Widget Test',
-      role: 'admin',
-      roleLabel: 'Amministratore',
-    ),
-  );
-
-  @override
-  Future<AppAuthTokens> refresh({
-    required String refreshToken,
-    required String deviceId,
-    required String appVersion,
-  }) async => const AppAuthTokens(
-    accessToken: 'widget-access-2',
-    refreshToken: 'widget-refresh-2',
-  );
-
-  @override
-  Future<void> logout(String accessToken) async {}
-}
-
-final class _WidgetAuthStore implements AppAuthStore {
-  String? refreshToken;
-  String? username;
-  String? displayName;
-  bool quickUnlock = false;
-
-  @override
-  Future<void> clear() async {
-    refreshToken = null;
-    username = null;
-    displayName = null;
-    quickUnlock = false;
-  }
-
-  @override
-  Future<String?> readDisplayName() async => displayName;
-
-  @override
-  Future<bool> readQuickUnlockEnabled() async => quickUnlock;
-
-  @override
-  Future<String?> readRefreshToken() async => refreshToken;
-
-  @override
-  Future<String?> readUsername() async => username;
-
-  @override
-  Future<void> save({
-    required String refreshToken,
-    required AppAuthUser user,
-    required bool quickUnlockEnabled,
-  }) async {
-    this.refreshToken = refreshToken;
-    username = user.username;
-    displayName = user.displayName;
-    quickUnlock = quickUnlockEnabled;
-  }
-}
-
-final class _WidgetUnlock implements DeviceUnlockService {
-  @override
-  Future<bool> authenticate() async => true;
-
-  @override
-  Future<bool> isAvailable() async => true;
 }

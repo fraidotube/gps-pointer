@@ -406,12 +406,24 @@ final class _CatalogueScreenState extends State<CatalogueScreen> {
 
   Widget _body(BuildContext context) {
     final catalogue = controller.catalogue;
-    if (controller.busy && catalogue == null) {
+
+    // Durante l'inizializzazione iniziale non abbiamo ancora né identità né
+    // catalogo: qui il loader a pagina intera è corretto.
+    if (controller.busy &&
+        controller.deviceDisplayName == null &&
+        catalogue == null) {
       return const Center(child: CircularProgressIndicator());
     }
+
     if (controller.deviceDisplayName == null) {
       return _DeviceSetup(controller: controller);
     }
+
+    // IMPORTANTE: quando l'utente apre il file picker su una installazione
+    // senza catalogo, importCatalogue() mette controller.busy=true.
+    // _FirstSetup deve restare montata mentre il picker Android è aperto,
+    // altrimenti il BuildContext usato dalla callback di approvazione viene
+    // smontato e l'import viene interpretato come "annullato".
     if (catalogue == null) {
       return _FirstSetup(controller: controller);
     }
