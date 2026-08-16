@@ -18,6 +18,7 @@ final class CatalogueImportPreview {
     required this.sourceDeviceName,
     required this.fileNameDiffers,
     required this.deviceDiffers,
+    this.beaconCount,
   });
 
   final String fileName;
@@ -26,6 +27,7 @@ final class CatalogueImportPreview {
   final String? sourceDeviceName;
   final bool fileNameDiffers;
   final bool deviceDiffers;
+  final int? beaconCount;
 
   bool get requiresApproval => fileNameDiffers || deviceDiffers;
 }
@@ -151,6 +153,56 @@ final class CatalogueController extends ChangeNotifier {
           : 'Archivio v3 caricato correttamente.';
     });
     return success;
+  }
+
+  Future<bool> importCatalogueFromServer({
+    required String content,
+    required CatalogueImportApproval approve,
+  }) async {
+    var success = false;
+    await _execute(() async {
+      final parsed = _importService.parser.parse(content);
+      final preview = CatalogueImportPreview(
+        fileName: standardCatalogueFileName,
+        exportedAtUtc: parsed.exportedAtUtc,
+        sourceDeviceId: parsed.deviceId,
+        sourceDeviceName: parsed.deviceName,
+        fileNameDiffers: false,
+        deviceDiffers:
+            parsed.deviceId != null && parsed.deviceId != installationId,
+        beaconCount: parsed.beacons.length,
+      );
+      if (!await approve(preview)) {
+        _noticeMessage =
+            'Aggiornamento dal server annullato. Archivio non modificato.';
+        return;
+      }
+      await _importService.importText(
+        content,
+        sourceFileName: standardCatalogueFileName,
+        importedAt: _clock().toUtc(),
+      );
+      _catalogue = await _importService.currentCatalogue();
+      success = true;
+      await _fillMissingElevations();
+      _noticeMessage =
+          'Catalogo server aggiornato: ${parsed.beacons.length} radiofari.';
+    });
+    return success;
+  }
+
+  Future<void> clearCatalogue() async {
+    await _execute(() async {
+      final emptyCatalogue = RadioBeaconCatalogue(
+        beacons: const [],
+        sourceFileName: standardCatalogueFileName,
+        importedAt: _clock().toUtc(),
+      );
+      await _importService.replaceCatalogue(emptyCatalogue);
+      _catalogue = emptyCatalogue;
+      _catalogueFilterLocation = null;
+      _noticeMessage = 'Lista radiofari azzerata.';
+    });
   }
 
   Future<bool> refreshCatalogueFilterPosition() async {

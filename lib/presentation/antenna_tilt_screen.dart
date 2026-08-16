@@ -252,6 +252,10 @@ final class _AntennaTiltScreenState extends State<AntennaTiltScreen> {
                 Text(
                   'Tilt richiesto '
                   '${solution.elevationAngleDegrees.toStringAsFixed(1)}°',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const Text('Misura gravitazionale • magnetometro escluso'),
               ],
@@ -280,7 +284,10 @@ final class _AntennaTiltScreenState extends State<AntennaTiltScreen> {
               children: [
                 Text(
                   _guidance(reading),
-                  style: Theme.of(context).textTheme.titleLarge,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: _guidanceColor(context, reading),
+                    fontWeight: FontWeight.w600,
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 if (reading == null ||
@@ -296,6 +303,12 @@ final class _AntennaTiltScreenState extends State<AntennaTiltScreen> {
                   ),
                   Text(
                     'Differenza ${reading.deltaDegrees.toStringAsFixed(1)}°',
+                    style: TextStyle(
+                      color: reading.centered
+                          ? const Color(0xFF63D98A)
+                          : const Color(0xFFFFB454),
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ],
                 const SizedBox(height: 8),
@@ -328,6 +341,19 @@ final class _AntennaTiltScreenState extends State<AntennaTiltScreen> {
     return reading.deltaDegrees > 0
         ? 'Alza ${reading.deltaDegrees.abs().toStringAsFixed(1)}°'
         : 'Abbassa ${reading.deltaDegrees.abs().toStringAsFixed(1)}°';
+  }
+
+  Color _guidanceColor(BuildContext context, AntennaTiltReading? reading) {
+    final colors = Theme.of(context).colorScheme;
+    if (reading == null || reading.state == AntennaTiltState.warmingUp) {
+      return colors.primary;
+    }
+    if (!reading.mountingValid || reading.state == AntennaTiltState.unstable) {
+      return colors.error;
+    }
+    if (reading.centered) return const Color(0xFF63D98A);
+    if (reading.deltaDegrees.abs() >= 15) return const Color(0xFFFF7A6E);
+    return const Color(0xFFFFB454);
   }
 
   Widget _message(String message) => Center(
@@ -385,14 +411,28 @@ final class _TiltGaugePainter extends CustomPainter {
       final inner = _point(center, radius - 14, angle);
       canvas.drawLine(inner, outer, ring);
     }
-    _needle(canvas, center, radius, targetDegrees, colors.secondary, 5);
+    final targetAngle = _angle(targetDegrees.clamp(-60, 60).toDouble());
+    final tolerancePaint = Paint()
+      ..color = const Color(0xFF63D98A).withValues(alpha: 0.55)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 8
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius - 2),
+      targetAngle - math.pi / 180,
+      2 * math.pi / 180,
+      false,
+      tolerancePaint,
+    );
+
+    _needle(canvas, center, radius, targetDegrees, colors.primary, 5);
     if (measuredDegrees != null) {
       _needle(
         canvas,
         center,
         radius - 18,
         measuredDegrees!,
-        centered ? Colors.greenAccent : colors.primary,
+        centered ? const Color(0xFF63D98A) : const Color(0xFFFFB454),
         7,
       );
     }

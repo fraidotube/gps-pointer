@@ -187,6 +187,54 @@ RF-1;Altro;43.0;12.0;321;4;manuale;;
     );
   });
 
+  test(
+    'clearCatalogue empties only the local radio beacon catalogue',
+    () async {
+      final controller = _controller(file: _validFile);
+      await controller.initialize();
+      await controller.importCatalogue();
+
+      expect(controller.catalogue, isNotNull);
+      expect(controller.catalogue!.beacons, hasLength(1));
+
+      await controller.clearCatalogue();
+
+      expect(controller.catalogue, isNotNull);
+      expect(controller.catalogue!.beacons, isEmpty);
+      expect(controller.catalogueFilterLocation, isNull);
+      expect(controller.noticeMessage, 'Lista radiofari azzerata.');
+    },
+  );
+
+  test(
+    'server catalogue requires approval and replaces local catalogue',
+    () async {
+      final controller = _controller(file: _validFile);
+      await controller.initialize();
+      await controller.importCatalogue();
+
+      CatalogueImportPreview? preview;
+      final success = await controller.importCatalogueFromServer(
+        content: '''GPS_POINTER_RADIOFARI;3
+esportato_utc;id_dispositivo;nome_dispositivo
+2026-08-16T12:00:00.000Z;GPSP-AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE;GPS Pointer Server
+id;nome;latitudine;longitudine;quota_terreno_m;altezza_palo_m;fonte_quota;accuratezza_orizzontale_m;accuratezza_verticale_m
+RF-SERVER;Radiofaro Server;43.100000;12.500000;500;5;open_meteo_copernicus_glo90;;
+''',
+        approve: (value) async {
+          preview = value;
+          return true;
+        },
+      );
+
+      expect(success, isTrue);
+      expect(preview!.beaconCount, 1);
+      expect(controller.catalogue!.beacons, hasLength(1));
+      expect(controller.catalogue!.beacons.single.id, 'RF-SERVER');
+      expect(controller.noticeMessage, contains('1 radiofari'));
+    },
+  );
+
   test('a non-standard filename requires approval', () async {
     final controller = _controller(
       file: const SelectedRadioBeaconFile(

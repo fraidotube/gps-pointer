@@ -46,3 +46,12 @@ app.*.map.json
 
 # Generated Android build files
 /android/build/
+
+# GPS Pointer release/build artifacts
+*.apk
+*.zip
+APPLICA_*.txt
+MB2_*README.txt
+*.jks
+*.keystore
+key.properties

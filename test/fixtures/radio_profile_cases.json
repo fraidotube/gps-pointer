@@ -1,0 +1,34 @@
+[
+  {
+    "name": "mountain_obstruction",
+    "input": {
+      "distance_m": 10000.0,
+      "elevations_m": [100.0, 300.0, 100.0],
+      "installer_antenna_height_m": 10.0,
+      "target_antenna_height_m": 10.0,
+      "frequency_ghz": 5.8
+    },
+    "expected": {
+      "minimum_los_clearance_m": -191.47151153665044,
+      "minimum_fresnel_clearance_m": -202.83904808020134,
+      "line_of_sight_clear": false,
+      "first_fresnel_clear": false
+    }
+  },
+  {
+    "name": "flat_clear",
+    "input": {
+      "distance_m": 10000.0,
+      "elevations_m": [100.0, 100.0, 100.0],
+      "installer_antenna_height_m": 20.0,
+      "target_antenna_height_m": 20.0,
+      "frequency_ghz": 5.8
+    },
+    "expected": {
+      "minimum_los_clearance_m": 18.528488463349547,
+      "minimum_fresnel_clearance_m": 7.160951919798634,
+      "line_of_sight_clear": true,
+      "first_fresnel_clear": true
+    }
+  }
+]

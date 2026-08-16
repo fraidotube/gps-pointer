@@ -383,7 +383,13 @@ final class _CompassScreenState extends State<CompassScreen> {
           ),
           const SizedBox(height: 8),
           Text('${(distanceMeters / 1000).toStringAsFixed(2)} km'),
-          Text('Azimut vero ${targetAzimuthDegrees.toStringAsFixed(1)}°'),
+          Text(
+            'Azimut vero ${targetAzimuthDegrees.toStringAsFixed(1)}°',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.primary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           Text(
             'Declinazione magnetica '
             '${widget.controller.declinationDegrees.toStringAsFixed(1)}°',
@@ -421,7 +427,16 @@ final class _CompassScreenState extends State<CompassScreen> {
               isFlat: isFlat,
               delta: delta,
             ),
-            style: Theme.of(context).textTheme.titleLarge,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: _guidanceColor(
+                context,
+                warming: warming,
+                unstable: unstable,
+                isFlat: isFlat,
+                delta: delta,
+              ),
+              fontWeight: FontWeight.w600,
+            ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 10),
@@ -462,6 +477,21 @@ final class _CompassScreenState extends State<CompassScreen> {
       ),
     ),
   );
+
+  Color _guidanceColor(
+    BuildContext context, {
+    required bool warming,
+    required bool unstable,
+    required bool isFlat,
+    required double? delta,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    if (unstable || !isFlat) return colors.error;
+    if (warming || delta == null) return colors.primary;
+    if (delta.abs() <= 2) return const Color(0xFF63D98A);
+    if (delta.abs() >= 45) return const Color(0xFFFF7A6E);
+    return const Color(0xFFFFB454);
+  }
 
   Widget _message(String message) => Center(
     child: Padding(
@@ -528,6 +558,20 @@ final class _CompassPainter extends CustomPainter {
       ..color = colorScheme.outline;
     canvas.drawCircle(center, radius, ring);
 
+    const toleranceDegrees = 3.0;
+    final tolerancePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 8
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFF63D98A).withValues(alpha: 0.55);
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius - 4),
+      -math.pi / 2 - toleranceDegrees * math.pi / 180,
+      toleranceDegrees * 2 * math.pi / 180,
+      false,
+      tolerancePaint,
+    );
+
     for (var degrees = 0; degrees < 360; degrees += 10) {
       final relative = (degrees - headingDegrees) * math.pi / 180;
       final major = degrees % 30 == 0;
@@ -568,15 +612,34 @@ final class _CompassPainter extends CustomPainter {
       ..lineTo(center.dx - 11, center.dy - radius + 30)
       ..lineTo(center.dx + 11, center.dy - radius + 30)
       ..close();
-    canvas.drawPath(arrow, Paint()..color = colorScheme.onSurface);
+    final correctionColor = centered
+        ? const Color(0xFF63D98A)
+        : const Color(0xFFFFB454);
+    canvas.drawPath(arrow, Paint()..color = correctionColor);
 
     if (ready && targetDeltaDegrees != null) {
       final radians = targetDeltaDegrees! * math.pi / 180;
       final target = _polar(center, radius - 6, radians);
-      final targetPaint = Paint()
-        ..color = centered ? Colors.greenAccent : colorScheme.primary;
-      canvas.drawCircle(target, 15, targetPaint);
+      final targetColor = centered
+          ? const Color(0xFF63D98A)
+          : colorScheme.primary;
+      canvas.drawCircle(
+        target,
+        22,
+        Paint()..color = targetColor.withValues(alpha: 0.20),
+      );
+      canvas.drawCircle(target, 15, Paint()..color = targetColor);
       canvas.drawCircle(target, 7, Paint()..color = colorScheme.surface);
+
+      final innerTarget = _polar(center, radius - 32, radians);
+      canvas.drawLine(
+        innerTarget,
+        target,
+        Paint()
+          ..color = targetColor.withValues(alpha: 0.75)
+          ..strokeWidth = 3
+          ..strokeCap = StrokeCap.round,
+      );
     }
 
     canvas.drawCircle(center, 7, Paint()..color = colorScheme.primary);

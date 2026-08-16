@@ -5,25 +5,42 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_compass/flutter_compass.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:http/http.dart' as http;
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../application/app_auth.dart';
 import '../application/catalogue_controller.dart';
 import '../application/pointing_controller.dart';
+import '../application/device_location_service.dart';
+import '../application/simulation_export_service.dart';
 import '../core/core.dart';
+import 'app_auth_gate.dart';
 import 'antenna_tilt_screen.dart';
 import 'compass_screen.dart';
 import 'guidance_overlay.dart';
+import 'altimetry_screen.dart';
+import 'simulations_screen.dart';
 
 final class GpsPointerApp extends StatelessWidget {
   const GpsPointerApp({
+    required this.authController,
     required this.controller,
     required this.pointingController,
+    required this.locationService,
+    required this.profileElevationProvider,
+    required this.simulationRepository,
+    required this.simulationExportService,
     super.key,
   });
 
+  final AppAuthController authController;
   final CatalogueController controller;
   final PointingController pointingController;
+  final DeviceLocationService locationService;
+  final TerrainProfileElevationProvider profileElevationProvider;
+  final RadioLinkSimulationRepository simulationRepository;
+  final SimulationExportService simulationExportService;
 
   @override
   Widget build(BuildContext context) => MaterialApp(
@@ -44,22 +61,46 @@ final class GpsPointerApp extends StatelessWidget {
       ),
       useMaterial3: true,
     ),
-    home: CatalogueScreen(
-      controller: controller,
-      pointingController: pointingController,
+    home: ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) {
+        final catalogueScreen = CatalogueScreen(
+          authController: authController,
+          controller: controller,
+          pointingController: pointingController,
+          locationService: locationService,
+          profileElevationProvider: profileElevationProvider,
+          simulationRepository: simulationRepository,
+          simulationExportService: simulationExportService,
+        );
+        if (controller.deviceDisplayName == null) {
+          return catalogueScreen;
+        }
+        return AppAuthGate(controller: authController, child: catalogueScreen);
+      },
     ),
   );
 }
 
 final class CatalogueScreen extends StatefulWidget {
   const CatalogueScreen({
+    required this.authController,
     required this.controller,
     required this.pointingController,
+    required this.locationService,
+    required this.profileElevationProvider,
+    required this.simulationRepository,
+    required this.simulationExportService,
     super.key,
   });
 
+  final AppAuthController authController;
   final CatalogueController controller;
   final PointingController pointingController;
+  final DeviceLocationService locationService;
+  final TerrainProfileElevationProvider profileElevationProvider;
+  final RadioLinkSimulationRepository simulationRepository;
+  final SimulationExportService simulationExportService;
 
   @override
   State<CatalogueScreen> createState() => _CatalogueScreenState();
@@ -72,8 +113,164 @@ final class _CatalogueScreenState extends State<CatalogueScreen> {
   double _radiusKm = 25;
   bool _initialLocationRequested = false;
 
+  AppAuthController get authController => widget.authController;
   CatalogueController get controller => widget.controller;
   PointingController get pointingController => widget.pointingController;
+  DeviceLocationService get locationService => widget.locationService;
+  TerrainProfileElevationProvider get profileElevationProvider =>
+      widget.profileElevationProvider;
+  RadioLinkSimulationRepository get simulationRepository =>
+      widget.simulationRepository;
+  SimulationExportService get simulationExportService =>
+      widget.simulationExportService;
+
+  static final Uri _serverCatalogueUri = Uri.parse(
+    'https://gpspointer.ernet.it:9443/api/v1/catalog/export',
+  );
+
+  Future<String> _fetchServerCatalogue(String token) async {
+    final response = await http
+        .get(_serverCatalogueUri, headers: {'Authorization': 'Bearer $token'})
+        .timeout(const Duration(seconds: 20));
+    if (response.statusCode == 401) {
+      throw const _ServerCatalogueException(
+        'unauthorized',
+        'Sessione scaduta.',
+      );
+    }
+    if (response.statusCode != 200) {
+      throw _ServerCatalogueException(
+        'server_error',
+        'Download catalogo non riuscito (HTTP ${response.statusCode}).',
+      );
+    }
+    return response.body;
+  }
+
+  Future<bool?> _askResetBeforeServerDownload(BuildContext context) {
+    final count = controller.catalogue?.beacons.length ?? 0;
+    return showDialog<bool?>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Prima del download'),
+        content: Text(
+          'La lista locale contiene $count radiofari.\n\n'
+          'Vuoi azzerarla prima di scaricare il catalogo dal server?\n\n'
+          'Se scegli “Azzera prima”, la lista viene cancellata subito: '
+          'se il download non riesce resterà vuota.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Annulla'),
+          ),
+          OutlinedButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Non azzerare'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Azzera prima'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _downloadCatalogueFromServer(BuildContext context) async {
+    final resetBefore = await _askResetBeforeServerDownload(context);
+    if (resetBefore == null || !context.mounted) return;
+    if (resetBefore) {
+      await controller.clearCatalogue();
+      if (!context.mounted) return;
+    }
+
+    try {
+      var token = authController.accessToken;
+      if (token == null) {
+        throw const _ServerCatalogueException(
+          'unauthorized',
+          'Sessione non disponibile. Accedi nuovamente.',
+        );
+      }
+      String content;
+      try {
+        content = await _fetchServerCatalogue(token);
+      } on _ServerCatalogueException catch (error) {
+        if (error.code != 'unauthorized') rethrow;
+        if (!await authController.refreshAccessToken()) {
+          throw const _ServerCatalogueException(
+            'unauthorized',
+            'Sessione scaduta. Accedi nuovamente.',
+          );
+        }
+        token = authController.accessToken;
+        if (token == null) {
+          throw const _ServerCatalogueException(
+            'unauthorized',
+            'Sessione non disponibile. Accedi nuovamente.',
+          );
+        }
+        content = await _fetchServerCatalogue(token);
+      }
+
+      await controller.importCatalogueFromServer(
+        content: content,
+        approve: (preview) async {
+          if (!context.mounted) return false;
+          return await showDialog<bool>(
+                context: context,
+                barrierDismissible: false,
+                builder: (dialogContext) => AlertDialog(
+                  title: const Text('Aggiorna catalogo dal server'),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${preview.beaconCount ?? 0} radiofari validati sul server.',
+                      ),
+                      if (preview.sourceDeviceName != null)
+                        Text('Origine: ${preview.sourceDeviceName}'),
+                      if (preview.exportedAtUtc != null)
+                        Text(
+                          'Esportato UTC: ${preview.exportedAtUtc!.toIso8601String()}',
+                        ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Il catalogo locale verrà sostituito soltanto dopo la '
+                        'validazione completa del TXT v3.',
+                      ),
+                    ],
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(dialogContext, false),
+                      child: const Text('Annulla'),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(dialogContext, true),
+                      child: const Text('Scarica e sostituisci'),
+                    ),
+                  ],
+                ),
+              ) ??
+              false;
+        },
+      );
+    } on _ServerCatalogueException catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } on Exception catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Catalogo server non scaricato: $error')),
+      );
+    }
+  }
 
   @override
   void dispose() {
@@ -85,39 +282,123 @@ final class _CatalogueScreenState extends State<CatalogueScreen> {
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: controller,
     builder: (context, _) => Scaffold(
-      appBar: AppBar(
-        title: Row(
-          children: [
-            const Text('GPS Pointer'),
-            const SizedBox(width: 12),
-            Image.asset('asset/fry_pointer.png', width: 46, height: 46),
-          ],
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(112),
+        child: SafeArea(
+          bottom: false,
+          child: Material(
+            color: const Color(0xFF07131C),
+            child: Column(
+              children: [
+                SizedBox(
+                  height: 64,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Row(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: Image.asset(
+                            'asset/fry_app.png',
+                            width: 42,
+                            height: 42,
+                            fit: BoxFit.cover,
+                            filterQuality: FilterQuality.medium,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'GPS Pointer',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                'App puntamento GPS',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: Color(0xFF9FB6C2),
+                                  fontSize: 12,
+                                  letterSpacing: .2,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                if (controller.catalogue != null &&
+                    controller.deviceDisplayName != null)
+                  Container(
+                    height: 48,
+                    decoration: const BoxDecoration(
+                      border: Border(
+                        top: BorderSide(color: Color(0xFF16323F)),
+                        bottom: BorderSide(color: Color(0xFF16323F)),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        IconButton(
+                          tooltip: 'Aggiungi radiofaro',
+                          onPressed: controller.busy
+                              ? null
+                              : () => _openAddBeaconDialog(context),
+                          icon: const Icon(Icons.add_location_alt),
+                        ),
+                        IconButton(
+                          tooltip: 'Esporta TXT',
+                          onPressed: controller.busy
+                              ? null
+                              : controller.exportCatalogue,
+                          icon: const Icon(Icons.ios_share),
+                        ),
+                        IconButton(
+                          tooltip: 'Scarica catalogo dal server',
+                          onPressed: controller.busy || authController.busy
+                              ? null
+                              : () => _downloadCatalogueFromServer(context),
+                          icon: const Icon(Icons.cloud_download_outlined),
+                        ),
+                        IconButton(
+                          tooltip: 'Simulazioni',
+                          onPressed: () => Navigator.of(context).push<void>(
+                            MaterialPageRoute<void>(
+                              builder: (_) => SimulationsScreen(
+                                repository: simulationRepository,
+                                exportService: simulationExportService,
+                                deviceId: controller.installationId,
+                                deviceName: controller.deviceDisplayName!,
+                              ),
+                            ),
+                          ),
+                          icon: const Icon(Icons.analytics_outlined),
+                        ),
+                        IconButton(
+                          tooltip: 'Impostazioni',
+                          onPressed: () => _openSettings(context),
+                          icon: const Icon(Icons.settings),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
-        actions: [
-          if (controller.catalogue != null &&
-              controller.deviceDisplayName != null)
-            IconButton(
-              tooltip: 'Aggiungi radiofaro',
-              onPressed: controller.busy
-                  ? null
-                  : () => _openAddBeaconDialog(context),
-              icon: const Icon(Icons.add_location_alt),
-            ),
-          if (controller.catalogue != null &&
-              controller.deviceDisplayName != null)
-            IconButton(
-              tooltip: 'Esporta TXT',
-              onPressed: controller.busy ? null : controller.exportCatalogue,
-              icon: const Icon(Icons.ios_share),
-            ),
-          if (controller.catalogue != null &&
-              controller.deviceDisplayName != null)
-            IconButton(
-              tooltip: 'Impostazioni',
-              onPressed: () => _openSettings(context),
-              icon: const Icon(Icons.settings),
-            ),
-        ],
       ),
       body: SafeArea(child: _body(context)),
     ),
@@ -270,6 +551,12 @@ final class _CatalogueScreenState extends State<CatalogueScreen> {
         distanceFromFilterMeters: filtered[index].distanceMeters,
         controller: controller,
         pointingController: pointingController,
+        locationService: locationService,
+        profileElevationProvider: profileElevationProvider,
+        simulationRepository: simulationRepository,
+        simulationExportService: simulationExportService,
+        deviceId: controller.installationId,
+        deviceName: controller.deviceDisplayName!,
       ),
     );
   }
@@ -315,15 +602,208 @@ final class _CatalogueScreenState extends State<CatalogueScreen> {
   Future<void> _openSettings(BuildContext context) =>
       Navigator.of(context).push<void>(
         MaterialPageRoute<void>(
-          builder: (_) => _CatalogueSettingsScreen(controller: controller),
+          builder: (_) => _CatalogueSettingsScreen(
+            controller: controller,
+            authController: authController,
+          ),
         ),
       );
 }
 
 final class _CatalogueSettingsScreen extends StatelessWidget {
-  const _CatalogueSettingsScreen({required this.controller});
+  const _CatalogueSettingsScreen({
+    required this.controller,
+    required this.authController,
+  });
 
   final CatalogueController controller;
+  final AppAuthController authController;
+
+  static final Uri _serverCatalogueUri = Uri.parse(
+    'https://gpspointer.ernet.it:9443/api/v1/catalog/export',
+  );
+
+  Future<String> _fetchServerCatalogue(String token) async {
+    final response = await http
+        .get(_serverCatalogueUri, headers: {'Authorization': 'Bearer $token'})
+        .timeout(const Duration(seconds: 20));
+    if (response.statusCode == 401) {
+      throw const _ServerCatalogueException(
+        'unauthorized',
+        'Sessione scaduta.',
+      );
+    }
+    if (response.statusCode != 200) {
+      throw _ServerCatalogueException(
+        'server_error',
+        'Download catalogo non riuscito (HTTP ${response.statusCode}).',
+      );
+    }
+    return response.body;
+  }
+
+  Future<bool?> _askResetBeforeServerDownload(BuildContext context) {
+    final count = controller.catalogue?.beacons.length ?? 0;
+    return showDialog<bool?>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Prima del download'),
+        content: Text(
+          'La lista locale contiene $count radiofari.\n\n'
+          'Vuoi azzerarla prima di scaricare il catalogo dal server?\n\n'
+          'Se scegli “Azzera prima”, la lista viene cancellata subito: '
+          'se il download non riesce resterà vuota.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Annulla'),
+          ),
+          OutlinedButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Non azzerare'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Azzera prima'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmAndClearCatalogue(BuildContext context) async {
+    final count = controller.catalogue?.beacons.length ?? 0;
+    if (count == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('La lista radiofari è già vuota.')),
+      );
+      return;
+    }
+    final approved =
+        await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Azzera lista radiofari'),
+            content: Text(
+              'Stai per eliminare dal telefono tutti i $count radiofari locali.\n\n'
+              'Account, impostazioni, simulazioni e accesso al server non '
+              'verranno modificati.\n\n'
+              'Potrai poi riscaricare il catalogo dal server o importare un TXT.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Annulla'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('Azzera lista'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!approved) return;
+    await controller.clearCatalogue();
+  }
+
+  Future<void> _downloadCatalogueFromServer(BuildContext context) async {
+    final resetBefore = await _askResetBeforeServerDownload(context);
+    if (resetBefore == null || !context.mounted) return;
+    if (resetBefore) {
+      await controller.clearCatalogue();
+      if (!context.mounted) return;
+    }
+
+    try {
+      var token = authController.accessToken;
+      if (token == null) {
+        throw const _ServerCatalogueException(
+          'unauthorized',
+          'Sessione non disponibile. Accedi nuovamente.',
+        );
+      }
+
+      String content;
+      try {
+        content = await _fetchServerCatalogue(token);
+      } on _ServerCatalogueException catch (error) {
+        if (error.code != 'unauthorized') rethrow;
+        if (!await authController.refreshAccessToken()) {
+          throw const _ServerCatalogueException(
+            'unauthorized',
+            'Sessione scaduta. Accedi nuovamente.',
+          );
+        }
+        token = authController.accessToken;
+        if (token == null) {
+          throw const _ServerCatalogueException(
+            'unauthorized',
+            'Sessione non disponibile. Accedi nuovamente.',
+          );
+        }
+        content = await _fetchServerCatalogue(token);
+      }
+
+      await controller.importCatalogueFromServer(
+        content: content,
+        approve: (preview) async {
+          if (!context.mounted) return false;
+          return await showDialog<bool>(
+                context: context,
+                barrierDismissible: false,
+                builder: (dialogContext) => AlertDialog(
+                  title: const Text('Aggiorna catalogo dal server'),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${preview.beaconCount ?? 0} radiofari validati sul server.',
+                      ),
+                      if (preview.sourceDeviceName != null)
+                        Text('Origine: ${preview.sourceDeviceName}'),
+                      if (preview.exportedAtUtc != null)
+                        Text(
+                          'Esportato UTC: ${preview.exportedAtUtc!.toIso8601String()}',
+                        ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Il catalogo locale verrà sostituito soltanto dopo la '
+                        'validazione completa del TXT v3.',
+                      ),
+                    ],
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(dialogContext, false),
+                      child: const Text('Annulla'),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(dialogContext, true),
+                      child: const Text('Scarica e sostituisci'),
+                    ),
+                  ],
+                ),
+              ) ??
+              false;
+        },
+      );
+    } on _ServerCatalogueException catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } on Exception catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Catalogo server non scaricato: $error')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -339,6 +819,47 @@ final class _CatalogueSettingsScreen extends StatelessWidget {
               _Messages(controller: controller),
               if (controller.busy) const LinearProgressIndicator(),
               const SizedBox(height: 8),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Account',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        authController.user?.displayName ??
+                            authController.savedDisplayName ??
+                            'Utente GPS Pointer',
+                      ),
+                      if ((authController.user?.username ??
+                              authController.savedUsername) !=
+                          null)
+                        Text(
+                          authController.user?.username ??
+                              authController.savedUsername!,
+                        ),
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        onPressed: authController.busy
+                            ? null
+                            : () async {
+                                await authController.logout();
+                                if (context.mounted) {
+                                  Navigator.of(context).pop();
+                                }
+                              },
+                        icon: const Icon(Icons.logout),
+                        label: const Text('Esci dall’account'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
@@ -381,11 +902,33 @@ final class _CatalogueSettingsScreen extends StatelessWidget {
                       SizedBox(
                         width: double.infinity,
                         child: FilledButton.icon(
+                          onPressed: controller.busy || authController.busy
+                              ? null
+                              : () => _downloadCatalogueFromServer(context),
+                          icon: const Icon(Icons.cloud_download_outlined),
+                          label: const Text('Scarica catalogo dal server'),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
                           onPressed: controller.busy
                               ? null
                               : () => _importCatalogue(context, controller),
                           icon: const Icon(Icons.sync),
-                          label: const Text('Sostituisci file TXT'),
+                          label: const Text('Sostituisci file TXT manualmente'),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: controller.busy
+                              ? null
+                              : () => _confirmAndClearCatalogue(context),
+                          icon: const Icon(Icons.delete_sweep_outlined),
+                          label: const Text('Azzera lista radiofari'),
                         ),
                       ),
                     ],
@@ -962,12 +1505,24 @@ final class _BeaconCard extends StatelessWidget {
     required this.distanceFromFilterMeters,
     required this.controller,
     required this.pointingController,
+    required this.locationService,
+    required this.profileElevationProvider,
+    required this.simulationRepository,
+    required this.simulationExportService,
+    required this.deviceId,
+    required this.deviceName,
   });
 
   final RadioBeacon beacon;
   final double? distanceFromFilterMeters;
   final CatalogueController controller;
   final PointingController pointingController;
+  final DeviceLocationService locationService;
+  final TerrainProfileElevationProvider profileElevationProvider;
+  final RadioLinkSimulationRepository simulationRepository;
+  final SimulationExportService simulationExportService;
+  final String deviceId;
+  final String deviceName;
 
   @override
   Widget build(BuildContext context) {
@@ -1058,6 +1613,17 @@ final class _BeaconCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.tonalIcon(
+                onPressed: controller.busy
+                    ? null
+                    : () => _openAltimetry(context),
+                icon: const Icon(Icons.terrain),
+                label: const Text('Altimetria'),
+              ),
+            ),
+            const SizedBox(height: 8),
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -1086,6 +1652,22 @@ final class _BeaconCard extends StatelessWidget {
               ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openAltimetry(BuildContext context) async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => AltimetryScreen(
+          beacon: beacon,
+          locationService: locationService,
+          profileElevationProvider: profileElevationProvider,
+          simulationRepository: simulationRepository,
+          exportService: simulationExportService,
+          deviceId: deviceId,
+          deviceName: deviceName,
         ),
       ),
     );
@@ -2124,9 +2706,9 @@ final class _PointingScreenState extends State<PointingScreen>
               title: 'Puntamento in realtà aumentata',
               illustration: GuidanceIllustration.augmentedReality,
               steps: const [
-                'Tieni il telefono verticale portrait con la fotocamera rivolta verso la zona da inquadrare.',
+                'Tieni il telefono in mano, verticale portrait, nella stessa posizione con cui farai il puntamento.',
                 'Allontanati da antenna, metallo, magneti e cavi elettrici.',
-                'Resta fermo durante la stabilizzazione iniziale dei sensori.',
+                'Resta fermo per 1–2 secondi durante la stabilizzazione iniziale, senza appoggiare il telefono.',
                 'Il mirino del radiofaro apparirà soltanto quando le letture saranno stabili.',
               ],
               actionLabel: 'Inizia stabilizzazione',
@@ -2137,9 +2719,9 @@ final class _PointingScreenState extends State<PointingScreen>
               title: 'Sensori AR instabili',
               illustration: GuidanceIllustration.figureEight,
               steps: const [
-                'Prima allontanati da antenna e oggetti metallici e tieni il telefono fermo.',
-                'Se l’instabilità continua, muovilo lentamente descrivendo una figura a 8.',
-                'Rimetti il telefono verticale, inquadra la zona e tienilo fermo.',
+                'Allontanati da antenna e oggetti metallici e prova prima a restare fermo per qualche secondo.',
+                'Solo se l’instabilità continua, muovi lentamente il telefono descrivendo una figura a 8.',
+                'Riprendi il telefono nella normale posizione d’uso, verticale, inquadra la zona e tienilo fermo.',
               ],
               actionLabel: 'Ho calibrato: riprova',
               onAction: _restartSensors,
@@ -2261,7 +2843,7 @@ final class _TargetOverlay extends StatelessWidget {
           margin: const EdgeInsets.all(12),
           padding: const EdgeInsets.all(10),
           decoration: const BoxDecoration(
-            color: Color(0xCC08738D),
+            color: Color(0xDDC47A23),
             shape: BoxShape.circle,
           ),
           child: Icon(
@@ -2284,7 +2866,7 @@ final class _TargetOverlay extends StatelessWidget {
           margin: const EdgeInsets.symmetric(vertical: 110),
           padding: const EdgeInsets.all(10),
           decoration: const BoxDecoration(
-            color: Color(0xCC08738D),
+            color: Color(0xDDC47A23),
             shape: BoxShape.circle,
           ),
           child: Icon(
@@ -2345,7 +2927,11 @@ final class _ArStatus extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           _instruction(),
-          style: const TextStyle(color: Colors.white, fontSize: 18),
+          style: TextStyle(
+            color: _instructionColor(),
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
           textAlign: TextAlign.center,
         ),
         Text(
@@ -2356,6 +2942,21 @@ final class _ArStatus extends StatelessWidget {
       ],
     ),
   );
+
+  Color _instructionColor() {
+    if (controller.hasMagnetometer == false || sensorError != null) {
+      return const Color(0xFFFF7A6E);
+    }
+    final value = reading;
+    if (value == null || value.state == PointingEngineState.warmingUp) {
+      return const Color(0xFF71D7EE);
+    }
+    if (value.state == PointingEngineState.unstable) {
+      return const Color(0xFFFF7A6E);
+    }
+    if (value.centered) return const Color(0xFF63D98A);
+    return const Color(0xFFFFB454);
+  }
 
   String _instruction() {
     if (controller.hasMagnetometer == false) {
@@ -2486,4 +3087,10 @@ final class _Messages extends StatelessWidget {
       ),
     );
   }
+}
+
+final class _ServerCatalogueException implements Exception {
+  const _ServerCatalogueException(this.code, this.message);
+  final String code;
+  final String message;
 }

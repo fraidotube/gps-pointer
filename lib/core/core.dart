@@ -17,3 +17,7 @@ export 'repositories/radio_beacon_repository.dart';
 export 'search/radio_beacon_catalogue_search.dart';
 export 'services/radio_beacon_import_service.dart';
 export 'services/radio_beacon_elevation_service.dart';
+export 'geo/radio_profile_engine.dart';
+export 'simulation/radio_link_simulation.dart';
+export 'simulation/radio_link_simulation_repository.dart';
+export 'elevation/terrain_profile_elevation_provider.dart';
