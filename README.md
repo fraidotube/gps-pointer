@@ -1,6 +1,6 @@
 ﻿# GPS Pointer
 
-GPS Pointer Ã¨ un'app Android per aiutare installatori e tecnici a individuare
+GPS Pointer è un'app Android per aiutare installatori e tecnici a individuare
 la direzione di un radiofaro partendo dalla posizione corrente del telefono.
 Fornisce distanza, azimut, mappa, bussola orizzontale, inclinometro per il tilt
 dell'antenna e una guida AR approssimativa tramite fotocamera.
@@ -11,14 +11,14 @@ Package: `io.github.fraidotube.gpspointer`
 
 ## Funzioni principali
 
-- radiofari ordinati automaticamente dal piÃ¹ vicino;
+- radiofari ordinati automaticamente dal più vicino;
 - ricerca per nome, ID o coordinate e filtro entro un raggio configurabile;
 - distanza e azimut rispetto alla posizione corrente;
 - Google Maps con osservatore, radiofaro e linea di collegamento;
 - bussola Azimut in landscape con stabilizzazione e guida illustrata;
 - modalitÃ  Tilt in portrait, usando gravitÃ  e accelerometro;
 - modalitÃ  AR con istruzioni, stabilizzazione e bersaglio sui due assi;
-- guida sonora facoltativa: bip piÃ¹ rapidi avvicinandosi e tono continuo al
+- guida sonora facoltativa: bip più rapidi avvicinandosi e tono continuo al
   centro;
 - archivio locale importabile ed esportabile in formato TXT v3;
 - aggiunta manuale con ID automatico e coordinate GPS precompilate;
@@ -44,7 +44,7 @@ misura radio o il collaudo tecnico dell'installazione.
 1. Inserire un nome riconoscibile per il telefono.
 2. Importare `radiofari_gps_pointer.txt`.
 3. Concedere la posizione quando richiesta.
-4. Attendere l'acquisizione GPS: l'elenco viene ordinato dal piÃ¹ vicino.
+4. Attendere l'acquisizione GPS: l'elenco viene ordinato dal più vicino.
 5. Selezionare un radiofaro e scegliere Mappa, Azimut, Tilt o AR.
 
 Le quote mancanti vengono richieste a Open-Meteo. L'altezza del telefono sopra
@@ -61,7 +61,7 @@ Requisiti della baseline:
 - Android minimo API 24;
 - dispositivo reale con GPS; magnetometro necessario per Azimut e AR.
 
-La chiave Google Maps Ã¨ letta da `android/local.properties`:
+La chiave Google Maps è letta da `android/local.properties`:
 
 ```properties
 MAPS_API_KEY=CHIAVE_GOOGLE_MAPS
@@ -102,4 +102,4 @@ proteggere una chiave di firma release.
 - `docs/CHANGELOG.md`: evoluzione di tutte le versioni consegnate.
 - `docs/ROADMAP.md`: prossimi macroblocchi, a partire dall'autenticazione LDAP.
 
-Il repository Ã¨ privato e non Ã¨ associato a una licenza open source.
+Il repository è privato e non è associato a una licenza open source.
