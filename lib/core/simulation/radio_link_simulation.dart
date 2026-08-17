@@ -1,10 +1,13 @@
 import '../domain/geo_point.dart';
 import '../geo/radio_profile_engine.dart';
 
+enum RadioLinkSimulationKind { coverage, ptp }
+
 final class RadioLinkSimulation {
   const RadioLinkSimulation({
     required this.id,
     required this.name,
+    required this.kind,
     required this.beaconId,
     required this.beaconName,
     required this.startPosition,
@@ -21,6 +24,7 @@ final class RadioLinkSimulation {
 
   final String id;
   final String name;
+  final RadioLinkSimulationKind kind;
   final String beaconId;
   final String beaconName;
   final GeoPoint startPosition;
@@ -37,6 +41,7 @@ final class RadioLinkSimulation {
   Map<String, Object?> toJson() => {
     'id': id,
     'name': name,
+    'simulation_type': kind.name,
     'beacon_id': beaconId,
     'beacon_name': beaconName,
     'start_latitude': startPosition.latitude,
@@ -57,6 +62,7 @@ final class RadioLinkSimulation {
       RadioLinkSimulation(
         id: json['id'] as String,
         name: json['name'] as String,
+        kind: _kindFromJson(json),
         beaconId: json['beacon_id'] as String,
         beaconName: json['beacon_name'] as String,
         startPosition: GeoPoint.validated(
@@ -81,4 +87,16 @@ final class RadioLinkSimulation {
         ),
         createdAtUtc: DateTime.parse(json['created_at_utc'] as String).toUtc(),
       );
+}
+
+RadioLinkSimulationKind _kindFromJson(Map<String, dynamic> json) {
+  final raw = json['simulation_type']?.toString().trim().toLowerCase();
+  if (raw == 'ptp') return RadioLinkSimulationKind.ptp;
+  if (raw == 'coverage') return RadioLinkSimulationKind.coverage;
+
+  // Backward compatibility with simulations saved before schema type existed.
+  final beaconId = json['beacon_id']?.toString() ?? '';
+  return beaconId.startsWith('PTP-')
+      ? RadioLinkSimulationKind.ptp
+      : RadioLinkSimulationKind.coverage;
 }

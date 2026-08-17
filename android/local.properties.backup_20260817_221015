@@ -1,0 +1,5 @@
+sdk.dir=C:\\Users\\Michele\\AppData\\Local\\Android\\sdk
+flutter.sdk=D:\\Flutter
+flutter.buildMode=release
+flutter.versionName=1.0.0
+flutter.versionCode=34

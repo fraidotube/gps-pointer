@@ -7,21 +7,34 @@ import 'package:flutter_compass/flutter_compass.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:sensors_plus/sensors_plus.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../application/app_auth.dart';
 import '../application/app_visual_theme.dart';
+import '../application/app_file_association_settings.dart';
 import '../application/catalogue_controller.dart';
 import '../application/pointing_controller.dart';
 import '../application/device_location_service.dart';
+import '../application/diagnostic_log_store.dart';
 import '../application/simulation_export_service.dart';
+import '../application/simulation_import_service.dart';
+import '../application/simulation_pdf_service.dart';
 import '../core/core.dart';
 import 'app_auth_gate.dart';
 import 'antenna_tilt_screen.dart';
 import 'compass_screen.dart';
 import 'guidance_overlay.dart';
+import 'main_hub_screen.dart';
+import 'debug_tools_screen.dart';
+import 'coverage_screen.dart';
+import 'ptp_screen.dart';
+import 'add_radio_station_screen.dart';
 import 'altimetry_screen.dart';
 import 'simulations_screen.dart';
+
+final GlobalKey<NavigatorState> gpsPointerNavigatorKey =
+    GlobalKey<NavigatorState>();
 
 final class GpsPointerApp extends StatelessWidget {
   const GpsPointerApp({
@@ -49,6 +62,7 @@ final class GpsPointerApp extends StatelessWidget {
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: visualThemeController,
     builder: (context, _) => MaterialApp(
+      navigatorKey: gpsPointerNavigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'GPS Pointer',
       themeMode: ThemeMode.dark,
@@ -66,18 +80,114 @@ final class GpsPointerApp extends StatelessWidget {
             simulationRepository: simulationRepository,
             simulationExportService: simulationExportService,
           );
-          if (controller.deviceDisplayName == null) {
+          if (controller.deviceDisplayName == null ||
+              controller.catalogue == null) {
             return catalogueScreen;
           }
           return AppAuthGate(
             controller: authController,
-            child: catalogueScreen,
+            child: Builder(
+              builder: (navContext) => MainHubScreen(
+                visualThemeController: visualThemeController,
+                onPostazioni: () => Navigator.of(navContext).push<void>(
+                  MaterialPageRoute<void>(builder: (_) => catalogueScreen),
+                ),
+                onCopertura: () => Navigator.of(navContext).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) => SimulationLibraryScreen(
+                      kind: RadioLinkSimulationKind.coverage,
+                      repository: simulationRepository,
+                      exportService: simulationExportService,
+                      pdfService: const SimulationPdfService(),
+                      importService: const SimulationImportService(),
+                      deviceId: controller.installationId,
+                      deviceName: controller.deviceDisplayName!,
+                      onCreate: () => Navigator.of(navContext).push<void>(
+                        MaterialPageRoute<void>(
+                          builder: (_) => CoverageScreen(
+                            catalogueController: controller,
+                            locationService: locationService,
+                            profileElevationProvider: profileElevationProvider,
+                            simulationRepository: simulationRepository,
+                            exportService: simulationExportService,
+                            deviceId: controller.installationId,
+                            deviceName: controller.deviceDisplayName!,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                onPtp: () => Navigator.of(navContext).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) => SimulationLibraryScreen(
+                      kind: RadioLinkSimulationKind.ptp,
+                      repository: simulationRepository,
+                      exportService: simulationExportService,
+                      pdfService: const SimulationPdfService(),
+                      importService: const SimulationImportService(),
+                      deviceId: controller.installationId,
+                      deviceName: controller.deviceDisplayName!,
+                      onCreate: () => Navigator.of(navContext).push<void>(
+                        MaterialPageRoute<void>(
+                          builder: (_) => PtpScreen(
+                            locationService: locationService,
+                            profileElevationProvider: profileElevationProvider,
+                            simulationRepository: simulationRepository,
+                            exportService: simulationExportService,
+                            deviceId: controller.installationId,
+                            deviceName: controller.deviceDisplayName!,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                onDownload: () => Navigator.of(navContext).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) => CatalogueScreen(
+                      authController: authController,
+                      visualThemeController: visualThemeController,
+                      controller: controller,
+                      pointingController: pointingController,
+                      locationService: locationService,
+                      profileElevationProvider: profileElevationProvider,
+                      simulationRepository: simulationRepository,
+                      simulationExportService: simulationExportService,
+                      initialAction: CatalogueEntryAction.downloadServer,
+                    ),
+                  ),
+                ),
+                onAdd: () => Navigator.of(navContext).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) =>
+                        AddRadioStationScreen(controller: controller),
+                  ),
+                ),
+                onSettings: () => Navigator.of(navContext).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) => _CatalogueSettingsScreen(
+                      controller: controller,
+                      authController: authController,
+                      visualThemeController: visualThemeController,
+                    ),
+                  ),
+                ),
+                onDebug: () => Navigator.of(navContext).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const DebugToolsScreen(),
+                  ),
+                ),
+              ),
+            ),
           );
         },
       ),
     ),
   );
 }
+
+enum CatalogueEntryAction { none, downloadServer, addBeacon }
 
 final class CatalogueScreen extends StatefulWidget {
   const CatalogueScreen({
@@ -89,6 +199,7 @@ final class CatalogueScreen extends StatefulWidget {
     required this.profileElevationProvider,
     required this.simulationRepository,
     required this.simulationExportService,
+    this.initialAction = CatalogueEntryAction.none,
     super.key,
   });
 
@@ -100,6 +211,7 @@ final class CatalogueScreen extends StatefulWidget {
   final TerrainProfileElevationProvider profileElevationProvider;
   final RadioLinkSimulationRepository simulationRepository;
   final SimulationExportService simulationExportService;
+  final CatalogueEntryAction initialAction;
 
   @override
   State<CatalogueScreen> createState() => _CatalogueScreenState();
@@ -124,6 +236,26 @@ final class _CatalogueScreenState extends State<CatalogueScreen> {
       widget.simulationRepository;
   SimulationExportService get simulationExportService =>
       widget.simulationExportService;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialAction != CatalogueEntryAction.none) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        switch (widget.initialAction) {
+          case CatalogueEntryAction.none:
+            break;
+          case CatalogueEntryAction.downloadServer:
+            unawaited(_downloadCatalogueFromServer(context));
+            break;
+          case CatalogueEntryAction.addBeacon:
+            unawaited(_openAddBeaconDialog(context));
+            break;
+        }
+      });
+    }
+  }
 
   static final Uri _serverCatalogueUri = Uri.parse(
     'https://gpspointer.ernet.it:9443/api/v1/catalog/export',
@@ -549,12 +681,6 @@ final class _CatalogueScreenState extends State<CatalogueScreen> {
     return CustomScrollView(
       key: const PageStorageKey<String>('catalogue-scroll'),
       slivers: [
-        SliverToBoxAdapter(
-          child: SizedBox(
-            height: visualThemeController.isRadarPro ? 186 : 112,
-            child: _buildTopBar(context),
-          ),
-        ),
         SliverToBoxAdapter(child: _Messages(controller: controller)),
         SliverToBoxAdapter(
           child: Padding(
@@ -571,7 +697,7 @@ final class _CatalogueScreenState extends State<CatalogueScreen> {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          'CATALOGO RADIOFARI',
+                          'POSTAZIONI RADIO',
                           style: Theme.of(context).textTheme.titleMedium
                               ?.copyWith(
                                 color: Colors.white,
@@ -1183,6 +1309,56 @@ final class _CatalogueSettingsScreen extends StatelessWidget {
                   listenable: visualThemeController,
                   builder: (context, _) => VisualThemeSelectorCard(
                     controller: visualThemeController,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Associazione file simulazione',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'GPS Pointer dichiara il supporto ai file .gpspsim. '
+                          'Android può comunque chiederti con quale app aprirli '
+                          'la prima volta.',
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: () async {
+                              final opened =
+                                  await AppFileAssociationSettings.openAndroidAppSettings();
+                              if (!opened && context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Impostazioni Android non disponibili.',
+                                    ),
+                                  ),
+                                );
+                              }
+                            },
+                            icon: const Icon(Icons.open_in_new),
+                            label: const Text(
+                              'APRI IMPOSTAZIONI ANDROID DELL’APP',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Per il test: apri un .gpspsim da Download e scegli '
+                          'GPS Pointer. Se Android propone “Sempre”, puoi '
+                          'impostarlo come predefinito.',
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -2718,6 +2894,9 @@ final class _PointingScreenState extends State<PointingScreen>
   Timer? _compassTimeout;
   double? _magneticHeading;
   double? _cameraElevation;
+  final DateTime _arDebugStarted = DateTime.now();
+  final List<String> _arDebugMarks = <String>[];
+  String? _arDebugLogPath;
   bool _showGuide = true;
   bool _showCalibrationGuide = false;
 
@@ -2835,6 +3014,72 @@ final class _PointingScreenState extends State<PointingScreen>
     }
   }
 
+  Future<void> _markArDebug() async {
+    final reading = _engineReading;
+    final solution = widget.controller.solution;
+    if (reading == null || solution == null) return;
+
+    final now = DateTime.now().toUtc();
+    final line = [
+      'FLAG${_arDebugMarks.length + 1}',
+      'utc=${now.toIso8601String()}',
+      'beacon=${widget.beacon.name}',
+      'target_true_deg=${solution.initialBearingDegrees.toStringAsFixed(6)}',
+      'target_elev_deg=${solution.elevationAngleDegrees.toStringAsFixed(6)}',
+      'declination_deg=${widget.controller.declinationDegrees.toStringAsFixed(6)}',
+      'magnetic_heading_deg=${reading.magneticHeadingDegrees.toStringAsFixed(6)}',
+      'true_heading_deg=${reading.trueHeadingDegrees.toStringAsFixed(6)}',
+      'horizontal_delta_deg=${reading.horizontalDeltaDegrees.toStringAsFixed(6)}',
+      'camera_elevation_deg=${reading.cameraElevationDegrees.toStringAsFixed(6)}',
+      'vertical_delta_deg=${reading.verticalDeltaDegrees.toStringAsFixed(6)}',
+      'state=${reading.state.name}',
+      'warmup=${reading.warmupProgress.toStringAsFixed(3)}',
+      'centered=${reading.centered}',
+      'camera_orientation=portrait',
+    ].join(' | ');
+
+    _arDebugMarks.add(line);
+    final content = <String>[
+      'GPS POINTER • AR DEBUG',
+      'engine=PointingEngineV2 unchanged',
+      'session_started=${_arDebugStarted.toUtc().toIso8601String()}',
+      'beacon=${widget.beacon.name}',
+      'marks=${_arDebugMarks.length}',
+      '',
+      ..._arDebugMarks,
+    ].join('\n');
+
+    final file = await DiagnosticLogStore.writeText(
+      category: 'AR',
+      subject: widget.beacon.name,
+      content: content,
+      timestamp: _arDebugStarted,
+    );
+    _arDebugLogPath = file.path;
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('AR FLAG ${_arDebugMarks.length} salvata.')),
+    );
+  }
+
+  Future<void> _shareArDebug() async {
+    final path = _arDebugLogPath;
+    if (path == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Crea prima almeno una FLAG AR.')),
+        );
+      }
+      return;
+    }
+    await SharePlus.instance.share(
+      ShareParams(
+        files: [XFile(path)],
+        subject: 'GPS Pointer AR debug ${widget.beacon.name}',
+      ),
+    );
+  }
+
   Future<void> _refreshPosition() async {
     if (widget.controller.busy) return;
     _stopSensors();
@@ -2943,6 +3188,19 @@ final class _PointingScreenState extends State<PointingScreen>
       appBar: AppBar(
         title: Text('AR • ${widget.beacon.name}'),
         actions: [
+          IconButton(
+            onPressed:
+                widget.controller.busy || _showGuide || _engineReading == null
+                ? null
+                : _markArDebug,
+            tooltip: 'FLAG AR',
+            icon: const Icon(Icons.flag_outlined),
+          ),
+          IconButton(
+            onPressed: _arDebugLogPath == null ? null : _shareArDebug,
+            tooltip: 'Esporta debug AR',
+            icon: const Icon(Icons.ios_share_outlined),
+          ),
           IconButton(
             onPressed: widget.controller.busy
                 ? null

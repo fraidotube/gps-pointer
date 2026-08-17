@@ -11,6 +11,8 @@ import 'application/catalogue_controller.dart';
 import 'application/catalogue_export_service.dart';
 import 'application/pointing_controller.dart';
 import 'application/simulation_export_service.dart';
+import 'application/incoming_simulation_bridge.dart';
+import 'application/simulation_exchange_codec.dart';
 import 'core/core.dart';
 import 'infrastructure/android_device_orientation_service.dart';
 import 'infrastructure/geolocator_device_location_service.dart';
@@ -92,4 +94,91 @@ Future<void> main() async {
       ),
     ),
   );
+
+  Future<bool> promptIncomingImport({
+    required IncomingSimulationPayload payload,
+    required SimulationExchangeDocument document,
+  }) async {
+    final navigator = gpsPointerNavigatorKey.currentState;
+    if (navigator == null) return false;
+
+    final simulation = document.simulation;
+    final typeLabel = simulation.kind == RadioLinkSimulationKind.coverage
+        ? 'Copertura'
+        : 'PTP';
+
+    return await navigator.push<bool>(
+          DialogRoute<bool>(
+            context: navigator.context,
+            builder: (dialogContext) => AlertDialog(
+              title: const Text('Apri con GPS Pointer'),
+              content: Text(
+                '${payload.name}\n\n'
+                '${simulation.name}\n'
+                'Tipo: $typeLabel\n\n'
+                'Importare questa simulazione nell’archivio locale?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: const Text('Annulla'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                  child: const Text('Importa'),
+                ),
+              ],
+            ),
+          ),
+        ) ??
+        false;
+  }
+
+  void showIncomingMessage(String message) {
+    final context = gpsPointerNavigatorKey.currentContext;
+    if (context == null) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> importIncoming(IncomingSimulationPayload payload) async {
+    SimulationExchangeDocument document;
+    try {
+      document = SimulationExchangeCodec.decode(payload.content);
+    } on FormatException catch (error) {
+      showIncomingMessage('File .gpspsim non valido: ${error.message}');
+      return;
+    }
+
+    // Wait only for the Navigator itself. No BuildContext is retained across
+    // any await boundary.
+    for (var attempt = 0; attempt < 30; attempt++) {
+      if (gpsPointerNavigatorKey.currentState != null) break;
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+    }
+    if (gpsPointerNavigatorKey.currentState == null) return;
+
+    final approved = await promptIncomingImport(
+      payload: payload,
+      document: document,
+    );
+    if (!approved) return;
+
+    final simulation = document.simulation;
+    final typeLabel = simulation.kind == RadioLinkSimulationKind.coverage
+        ? 'Copertura'
+        : 'PTP';
+
+    await simulationRepository.save(simulation);
+
+    // Resolve the messenger context only AFTER persistence completes.
+    showIncomingMessage(
+      '$typeLabel importata. Apri il relativo archivio dalla Home.',
+    );
+  }
+
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    IncomingSimulationBridge.initialize(importIncoming);
+  });
 }

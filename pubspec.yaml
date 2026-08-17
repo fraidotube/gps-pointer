@@ -1,7 +1,7 @@
 name: gps_pointer
 description: "App Android per individuare la direzione dei radiofari"
 publish_to: 'none'
-version: 1.0.0+23
+version: 1.0.0+40
 
 environment:
   sdk: ^3.12.2
@@ -22,6 +22,7 @@ dependencies:
   local_auth: 3.0.2
   package_info_plus: 10.2.1
   path_provider: 2.1.5
+  pdf: ^3.13.0
   share_plus: 13.3.0
   sensors_plus: 7.1.0
   url_launcher: 6.3.2
@@ -40,6 +41,9 @@ flutter:
     - asset/fry_pointer.png
     - asset/fry_splash.png
     - asset/pro_ico.png
+    - asset/pro_lighthouse_scene.png
+    - asset/pro_splash_background.png
+    - asset/pro_home_background.png
 
 flutter_native_splash:
   background_image: asset/fry_splash.png
