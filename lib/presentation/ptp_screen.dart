@@ -6,6 +6,8 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../application/device_location_service.dart';
 import '../application/simulation_export_service.dart';
+import '../application/server_upload_services.dart';
+import '../application/location_share_service.dart';
 import '../core/domain/geo_point.dart';
 import '../core/elevation/terrain_profile_elevation_provider.dart';
 import '../core/geo/geo_calculator.dart';
@@ -23,6 +25,7 @@ final class PtpScreen extends StatefulWidget {
     required this.exportService,
     required this.deviceId,
     required this.deviceName,
+    required this.serverUploadService,
     super.key,
   });
 
@@ -32,6 +35,7 @@ final class PtpScreen extends StatefulWidget {
   final SimulationExportService exportService;
   final String deviceId;
   final String deviceName;
+  final GpsPointerServerUploadService serverUploadService;
 
   @override
   State<PtpScreen> createState() => _PtpScreenState();
@@ -58,6 +62,8 @@ final class _PtpScreenState extends State<PtpScreen> {
   bool _loadingLocation = false;
   bool _busy = false;
   bool _saved = false;
+  String? _resultSimulationId;
+  DateTime? _resultCreatedAtUtc;
   String? _error;
 
   GeoPoint? _pointA;
@@ -266,6 +272,18 @@ final class _PtpScreenState extends State<PtpScreen> {
                         detailPointA: true,
                       ),
                     ),
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: OutlinedButton.icon(
+                        onPressed: () => LocationShareService.share(
+                          label: 'Location A - PTP',
+                          point: _pointA!,
+                        ),
+                        icon: const Icon(Icons.share_location_outlined),
+                        label: const Text('CONDIVIDI POSIZIONE A'),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -286,6 +304,18 @@ final class _PtpScreenState extends State<PtpScreen> {
                         a: _pointB!,
                         b: _pointA!,
                         detailPointA: true,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: OutlinedButton.icon(
+                        onPressed: () => LocationShareService.share(
+                          label: 'Location B - PTP',
+                          point: _pointB!,
+                        ),
+                        icon: const Icon(Icons.share_location_outlined),
+                        label: const Text('CONDIVIDI POSIZIONE B'),
                       ),
                     ),
                   ],
@@ -324,6 +354,15 @@ final class _PtpScreenState extends State<PtpScreen> {
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _busy ? null : _uploadSimulation,
+                        icon: const Icon(Icons.cloud_upload_outlined),
+                        label: const Text('INVIA AL SERVER'),
+                      ),
                     ),
                   ],
                 ),
@@ -474,6 +513,8 @@ final class _PtpScreenState extends State<PtpScreen> {
     _azimuthAtoB = null;
     _azimuthBtoA = null;
     _saved = false;
+    _resultSimulationId = null;
+    _resultCreatedAtUtc = null;
   }
 
   Future<void> _calculate() async {
@@ -521,12 +562,15 @@ final class _PtpScreenState extends State<PtpScreen> {
       final ba = GeoCalculator.initialBearingDegrees(b, a);
 
       if (!mounted) return;
+      final created = DateTime.now().toUtc();
       setState(() {
         _pointA = a;
         _pointB = b;
         _profile = profile;
         _azimuthAtoB = ab;
         _azimuthBtoA = ba;
+        _resultSimulationId = '${created.microsecondsSinceEpoch}';
+        _resultCreatedAtUtc = created;
       });
     } catch (error) {
       if (!mounted) return;
@@ -652,12 +696,13 @@ final class _PtpScreenState extends State<PtpScreen> {
         'Inserisci un nome simulazione da 1 a 120 caratteri.',
       );
     }
-    final now = DateTime.now().toUtc();
+    final now = _resultCreatedAtUtc ?? DateTime.now().toUtc();
+    final resultId = _resultSimulationId ?? '${now.microsecondsSinceEpoch}';
     return RadioLinkSimulation(
-      id: '${now.microsecondsSinceEpoch}',
+      id: resultId,
       name: name,
       kind: RadioLinkSimulationKind.ptp,
-      beaconId: 'PTP-${now.microsecondsSinceEpoch}',
+      beaconId: 'PTP-$resultId',
       beaconName: 'Punto B',
       startPosition: a,
       startGroundElevationMeters: profile.installerGroundElevationMeters,
@@ -699,6 +744,27 @@ final class _PtpScreenState extends State<PtpScreen> {
       );
     } catch (error) {
       if (mounted) setState(() => _error = _friendlyError(error));
+    }
+  }
+
+  Future<void> _uploadSimulation() async {
+    try {
+      setState(() {
+        _busy = true;
+        _error = null;
+      });
+      final simulation = _buildSimulation(requireName: false);
+      await widget.serverUploadService.uploadSimulation(simulation);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('PTP inviato al server.')));
+    } on ServerUploadException catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } catch (error) {
+      if (mounted) setState(() => _error = _friendlyError(error));
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 

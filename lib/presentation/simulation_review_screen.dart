@@ -7,6 +7,7 @@ import 'package:flutter/rendering.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../application/app_visual_theme.dart';
+import '../application/location_share_service.dart';
 import '../application/simulation_pdf_service.dart';
 import '../core/simulation/radio_link_simulation.dart';
 
@@ -148,6 +149,20 @@ final class _SimulationReviewScreenState extends State<SimulationReviewScreen> {
                     onCreated: (c) => _detailA = c,
                   ),
                 ),
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: OutlinedButton.icon(
+                    onPressed: () => LocationShareService.share(
+                      label: isPtp
+                          ? 'Location A - PTP'
+                          : 'Location A - Copertura',
+                      point: simulation.startPosition,
+                    ),
+                    icon: const Icon(Icons.share_location_outlined),
+                    label: const Text('CONDIVIDI POSIZIONE A'),
+                  ),
+                ),
               ]),
               if (isPtp) ...[
                 const SizedBox(height: 12),
@@ -163,6 +178,18 @@ final class _SimulationReviewScreenState extends State<SimulationReviewScreen> {
                       b: simulation.targetPosition,
                       detail: _SavedMapDetail.b,
                       onCreated: (c) => _detailB = c,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: OutlinedButton.icon(
+                      onPressed: () => LocationShareService.share(
+                        label: 'Location B - PTP',
+                        point: simulation.targetPosition,
+                      ),
+                      icon: const Icon(Icons.share_location_outlined),
+                      label: const Text('CONDIVIDI POSIZIONE B'),
                     ),
                   ),
                 ]),

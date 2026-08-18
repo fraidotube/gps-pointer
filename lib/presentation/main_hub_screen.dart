@@ -10,6 +10,7 @@ final class MainHubScreen extends StatelessWidget {
     required this.onPostazioni,
     required this.onCopertura,
     required this.onPtp,
+    required this.onRapporti,
     required this.onDownload,
     required this.onAdd,
     required this.onSettings,
@@ -21,6 +22,7 @@ final class MainHubScreen extends StatelessWidget {
   final VoidCallback onPostazioni;
   final VoidCallback onCopertura;
   final VoidCallback onPtp;
+  final VoidCallback onRapporti;
   final VoidCallback onDownload;
   final VoidCallback onAdd;
   final VoidCallback onSettings;
@@ -32,6 +34,7 @@ final class MainHubScreen extends StatelessWidget {
           onPostazioni: onPostazioni,
           onCopertura: onCopertura,
           onPtp: onPtp,
+          onRapporti: onRapporti,
           onDownload: onDownload,
           onAdd: onAdd,
           onSettings: onSettings,
@@ -41,6 +44,7 @@ final class MainHubScreen extends StatelessWidget {
           onPostazioni: onPostazioni,
           onCopertura: onCopertura,
           onPtp: onPtp,
+          onRapporti: onRapporti,
           onDownload: onDownload,
           onAdd: onAdd,
           onSettings: onSettings,
@@ -53,6 +57,7 @@ final class _RadarProHome extends StatelessWidget {
     required this.onPostazioni,
     required this.onCopertura,
     required this.onPtp,
+    required this.onRapporti,
     required this.onDownload,
     required this.onAdd,
     required this.onSettings,
@@ -62,6 +67,7 @@ final class _RadarProHome extends StatelessWidget {
   final VoidCallback onPostazioni;
   final VoidCallback onCopertura;
   final VoidCallback onPtp;
+  final VoidCallback onRapporti;
   final VoidCallback onDownload;
   final VoidCallback onAdd;
   final VoidCallback onSettings;
@@ -138,6 +144,8 @@ final class _RadarProHome extends StatelessWidget {
                             ],
                           ),
                           SizedBox(height: gap),
+                          _RadarReportsTile(onTap: onRapporti),
+                          SizedBox(height: gap),
                           _RadarSettingsTile(onTap: onSettings),
                           const SizedBox(height: 8),
                         ],
@@ -169,6 +177,14 @@ final class _RadarProHome extends StatelessWidget {
                   onTap: () {
                     Navigator.pop(context);
                     onPostazioni();
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.assignment_outlined),
+                  title: const Text('Rapporto d’intervento'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    onRapporti();
                   },
                 ),
                 ListTile(
@@ -359,6 +375,58 @@ final class _RadarTile extends StatelessWidget {
   );
 }
 
+final class _RadarReportsTile extends StatelessWidget {
+  const _RadarReportsTile({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.transparent,
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(15),
+      child: Ink(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(15),
+          gradient: const LinearGradient(
+            colors: [Color(0xEE122A47), Color(0xEE173C63)],
+          ),
+          border: Border.all(color: const Color(0x553E8BD8)),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.assignment_outlined, color: Colors.white, size: 30),
+            SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Rapporto d’intervento',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 14,
+                    ),
+                  ),
+                  SizedBox(height: 3),
+                  Text(
+                    'Modulo Connesi • firme touch • PDF',
+                    style: TextStyle(color: Color(0xFFBCD0E6), fontSize: 10),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, color: Color(0xFFBCD0E6)),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
 final class _RadarSettingsTile extends StatelessWidget {
   const _RadarSettingsTile({required this.onTap});
 
@@ -488,6 +556,7 @@ final class _ClassicHome extends StatelessWidget {
     required this.onPostazioni,
     required this.onCopertura,
     required this.onPtp,
+    required this.onRapporti,
     required this.onDownload,
     required this.onAdd,
     required this.onSettings,
@@ -497,6 +566,7 @@ final class _ClassicHome extends StatelessWidget {
   final VoidCallback onPostazioni;
   final VoidCallback onCopertura;
   final VoidCallback onPtp;
+  final VoidCallback onRapporti;
   final VoidCallback onDownload;
   final VoidCallback onAdd;
   final VoidCallback onSettings;
@@ -588,6 +658,22 @@ final class _ClassicHome extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 14),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF122A47),
+                foregroundColor: Colors.white,
+              ),
+              onPressed: onRapporti,
+              icon: const Icon(Icons.assignment_outlined),
+              label: const Padding(
+                padding: EdgeInsets.symmetric(vertical: 14),
+                child: Text(
+                  'RAPPORTO D’INTERVENTO',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
             FilledButton.tonalIcon(
               onPressed: onSettings,
               icon: const Icon(Icons.settings_outlined),

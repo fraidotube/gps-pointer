@@ -2,10 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../application/catalogue_controller.dart';
 import '../application/diagnostic_log_store.dart';
+import 'azimuth_v3_lab_screen.dart';
+import 'compass_sensor_diagnostics_screen.dart';
 
 final class DebugToolsScreen extends StatefulWidget {
-  const DebugToolsScreen({super.key});
+  const DebugToolsScreen({required this.controller, super.key});
+
+  final CatalogueController controller;
 
   @override
   State<DebugToolsScreen> createState() => _DebugToolsScreenState();
@@ -72,23 +77,56 @@ final class _DebugToolsScreenState extends State<DebugToolsScreen> {
               icon: Icons.explore_outlined,
               title: 'Azimut',
               subtitle:
-                  'Motore 2.2 invariato • posa verticale lato lungo • bandierine e log TXT.',
-              state: 'ATTIVO',
+                  'Motore 2.2 invariato • bandierine e log TXT. Accuratezza in validazione cross-device.',
+              state: 'BETA',
             ),
             const SizedBox(height: 10),
             const _ToolCard(
               icon: Icons.camera_alt_outlined,
               title: 'AR',
               subtitle:
-                  'Bandierine AR persistenti: heading magnetico/vero, target, delta, elevazione camera, stato stabilizzazione, posa e timestamp.',
-              state: 'ATTIVO',
+                  'Bandierine AR persistenti. Accuratezza orizzontale in validazione cross-device.',
+              state: 'BETA',
+            ),
+            const SizedBox(height: 10),
+            _ToolCard(
+              icon: Icons.sensors,
+              title: 'Diagnostica bussola',
+              subtitle:
+                  'Test 4×90 verticale/orizzontale/piatto, Rotation Vector Android e traccia sensori 30 s. Non modifica il motore.',
+              state: 'SAFE',
+              onTap: () async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const CompassSensorDiagnosticsScreen(),
+                  ),
+                );
+                if (mounted) await _refresh();
+              },
+            ),
+            const SizedBox(height: 10),
+            _ToolCard(
+              icon: Icons.science_outlined,
+              title: 'Azimuth V3 Lab',
+              subtitle:
+                  'V2 invariato + V3 gyro ancorato, fusione lenta, ancora manuale diagnostica e test deriva 60 s.',
+              state: 'EXPERIMENTAL',
+              onTap: () async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) =>
+                        AzimuthV3LabScreen(controller: widget.controller),
+                  ),
+                );
+                if (mounted) await _refresh();
+              },
             ),
             const SizedBox(height: 10),
             const _ToolCard(
               icon: Icons.tune,
               title: 'Calibrazioni',
               subtitle:
-                  'Gli strumenti già presenti restano invariati. Le calibrazioni sperimentali non vengono applicate automaticamente.',
+                  'Nessuna correzione automatica nelle schermate operative: le prove V3 restano isolate nel laboratorio.',
               state: 'SAFE',
             ),
             const SizedBox(height: 14),
@@ -230,43 +268,52 @@ final class _ToolCard extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.state,
+    this.onTap,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
   final String state;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(14),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 28),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: const TextStyle(fontWeight: FontWeight.w800),
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 28),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
                       ),
-                    ),
-                    Text(state, style: Theme.of(context).textTheme.labelSmall),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(subtitle),
-              ],
+                      Text(
+                        state,
+                        style: Theme.of(context).textTheme.labelSmall,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(subtitle),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     ),
   );

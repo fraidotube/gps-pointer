@@ -11,6 +11,7 @@ import '../application/pointing_controller.dart';
 import '../application/guidance_audio_controller.dart';
 import '../application/diagnostic_log_store.dart';
 import '../core/core.dart';
+import '../core/geo/pointing_engine_v3_field.dart';
 import 'guidance_overlay.dart';
 
 final class CompassScreen extends StatefulWidget {
@@ -44,6 +45,15 @@ final class _CompassScreenState extends State<CompassScreen> {
   bool _showDebugPanel = true;
   final List<_AzimuthDebugMark> _debugMarks = <_AzimuthDebugMark>[];
   final DateTime _debugSessionStartedAt = DateTime.now();
+  final PointingEngineV3Field _fieldV3 = PointingEngineV3Field();
+  StreamSubscription<GyroscopeEvent>? _gyroscopeSubscription;
+  final List<_FieldTimedHeading> _fieldAbsoluteSamples = <_FieldTimedHeading>[];
+  double? _fieldGravityX;
+  double? _fieldGravityY;
+  double? _fieldGravityZ;
+  double _fieldProjectedYawRateRadiansPerSecond = 0;
+  DateTime? _fieldLastGyroTime;
+  String? _fieldAnchorEvent;
 
   @override
   void initState() {
@@ -62,6 +72,10 @@ final class _CompassScreenState extends State<CompassScreen> {
 
   Future<void> _prepare({bool refreshPosition = false}) async {
     _stopSensors();
+    _fieldV3.reset();
+    _fieldAbsoluteSamples.clear();
+    _fieldLastGyroTime = null;
+    _fieldAnchorEvent = null;
     setState(() {
       _engine = null;
       _reading = null;
@@ -113,6 +127,9 @@ final class _CompassScreenState extends State<CompassScreen> {
     _accelerometerSubscription = accelerometerEventStream(
       samplingPeriod: SensorInterval.uiInterval,
     ).listen(_onAccelerometer);
+    _gyroscopeSubscription = gyroscopeEventStream(
+      samplingPeriod: SensorInterval.uiInterval,
+    ).listen(_onGyroscope);
     _sensorTimeout = Timer(const Duration(seconds: 5), () {
       if (mounted && _reading == null) {
         setState(() {
@@ -133,6 +150,14 @@ final class _CompassScreenState extends State<CompassScreen> {
       magneticHeadingDegrees: heading,
       cameraElevationDegrees: 0,
     );
+    final now = DateTime.now();
+    final absoluteTrue = PointingEngineV3Field.normalize(
+      heading + widget.controller.declinationDegrees,
+    );
+    _fieldAbsoluteSamples.add(_FieldTimedHeading(now, absoluteTrue));
+    final cutoff = now.subtract(const Duration(seconds: 3));
+    _fieldAbsoluteSamples.removeWhere((sample) => sample.time.isBefore(cutoff));
+    _tryAutoAnchorFieldV3();
     setState(() {
       _rawMagneticHeadingDegrees = heading;
       _reading = reading;
@@ -146,6 +171,16 @@ final class _CompassScreenState extends State<CompassScreen> {
 
   void _onAccelerometer(AccelerometerEvent event) {
     if (!mounted) return;
+    const alpha = 0.90;
+    _fieldGravityX = _fieldGravityX == null
+        ? event.x
+        : alpha * _fieldGravityX! + (1 - alpha) * event.x;
+    _fieldGravityY = _fieldGravityY == null
+        ? event.y
+        : alpha * _fieldGravityY! + (1 - alpha) * event.y;
+    _fieldGravityZ = _fieldGravityZ == null
+        ? event.z
+        : alpha * _fieldGravityZ! + (1 - alpha) * event.z;
     final tilt = HorizontalDeviceCalculator.tiltFromHorizontalDegrees(
       x: event.x,
       y: event.y,
@@ -158,9 +193,103 @@ final class _CompassScreenState extends State<CompassScreen> {
     }
   }
 
+  void _onGyroscope(GyroscopeEvent event) {
+    if (!mounted) return;
+    final now = DateTime.now();
+    final previous = _fieldLastGyroTime;
+    _fieldLastGyroTime = now;
+    if (previous == null) return;
+
+    final gx = _fieldGravityX;
+    final gy = _fieldGravityY;
+    final gz = _fieldGravityZ;
+    if (gx == null || gy == null || gz == null) return;
+    final gravityNorm = math.sqrt(gx * gx + gy * gy + gz * gz);
+    if (gravityNorm < 5) return;
+
+    final projectedRate =
+        event.x * gx / gravityNorm +
+        event.y * gy / gravityNorm +
+        event.z * gz / gravityNorm;
+    _fieldProjectedYawRateRadiansPerSecond = projectedRate;
+    final dt = now.difference(previous).inMicroseconds / 1000000.0;
+    final stableMean = _fieldStableAbsoluteMean;
+    final stationary =
+        (projectedRate * 180 / math.pi).abs() <= 3.0 &&
+        _fieldAbsoluteSpreadDegrees <= 2.5;
+    _fieldV3.update(
+      projectedYawRateRadiansPerSecond: projectedRate,
+      deltaSeconds: dt,
+      deviceStationary: stationary,
+      stableAbsoluteTrueHeadingDegrees: stationary ? stableMean : null,
+    );
+    _tryAutoAnchorFieldV3();
+    setState(() {});
+  }
+
+  double get _fieldAbsoluteSpreadDegrees {
+    final cutoff = DateTime.now().subtract(const Duration(seconds: 2));
+    final values = _fieldAbsoluteSamples
+        .where((sample) => sample.time.isAfter(cutoff))
+        .map((sample) => sample.heading)
+        .toList();
+    if (values.length < 8) return double.infinity;
+    final mean = _fieldCircularMean(values);
+    var maximum = 0.0;
+    for (final value in values) {
+      final delta = PointingEngineV3Field.signedAngle(value - mean).abs();
+      if (delta > maximum) maximum = delta;
+    }
+    return maximum;
+  }
+
+  double? get _fieldStableAbsoluteMean {
+    final cutoff = DateTime.now().subtract(const Duration(seconds: 2));
+    final values = _fieldAbsoluteSamples
+        .where((sample) => sample.time.isAfter(cutoff))
+        .map((sample) => sample.heading)
+        .toList();
+    if (values.length < 8 || _fieldAbsoluteSpreadDegrees > 2.5) return null;
+    return _fieldCircularMean(values);
+  }
+
+  double _fieldCircularMean(List<double> values) {
+    var sinSum = 0.0;
+    var cosSum = 0.0;
+    for (final value in values) {
+      final radians = value * math.pi / 180;
+      sinSum += math.sin(radians);
+      cosSum += math.cos(radians);
+    }
+    return PointingEngineV3Field.normalize(
+      math.atan2(sinSum, cosSum) * 180 / math.pi,
+    );
+  }
+
+  void _tryAutoAnchorFieldV3() {
+    if (_fieldV3.anchored) return;
+    final stableMean = _fieldStableAbsoluteMean;
+    final yawDps = _fieldProjectedYawRateRadiansPerSecond * 180 / math.pi;
+    if (stableMean == null || yawDps.abs() > 3.0) return;
+    _fieldV3.anchorAbsolute(stableMean);
+    _fieldAnchorEvent =
+        'AUTO_ANCHOR true=${stableMean.toStringAsFixed(6)} '
+        'spread=${_fieldAbsoluteSpreadDegrees.toStringAsFixed(6)}';
+  }
+
+  double? _fieldDelta(double? heading) {
+    final target = widget.controller.solution?.initialBearingDegrees;
+    if (target == null || heading == null) return null;
+    return PointingEngineV3Field.signedAngle(target - heading);
+  }
+
   void _restartSensors() {
     if (widget.controller.solution == null) return;
     _stopSensors();
+    _fieldV3.reset();
+    _fieldAbsoluteSamples.clear();
+    _fieldLastGyroTime = null;
+    _fieldAnchorEvent = null;
     setState(() {
       _reading = null;
       _sensorError = null;
@@ -180,8 +309,11 @@ final class _CompassScreenState extends State<CompassScreen> {
     _sensorTimeout = null;
     unawaited(_compassSubscription?.cancel());
     unawaited(_accelerometerSubscription?.cancel());
+    unawaited(_gyroscopeSubscription?.cancel());
     _compassSubscription = null;
     _accelerometerSubscription = null;
+    _gyroscopeSubscription = null;
+    _fieldLastGyroTime = null;
   }
 
   @override
@@ -206,7 +338,7 @@ final class _CompassScreenState extends State<CompassScreen> {
         title: Text('Azimut • ${widget.beacon.name}'),
         actions: [
           IconButton(
-            tooltip: 'Bandierina riferimento visivo',
+            tooltip: 'TARGET REALE QUI • salva confronto V2/V3',
             onPressed: widget.controller.busy || _showGuide
                 ? null
                 : _markVisualReference,
@@ -343,6 +475,10 @@ final class _CompassScreenState extends State<CompassScreen> {
           compassWidth,
           math.max(160.0, constraints.maxHeight - gap * 2),
         );
+        final gyroDelta = _fieldDelta(_fieldV3.snapshot.gyroHeadingDegrees);
+        final fusionDelta = _fieldDelta(
+          _fieldV3.snapshot.guardedFusionHeadingDegrees,
+        );
 
         return Padding(
           padding: const EdgeInsets.all(gap),
@@ -365,7 +501,27 @@ final class _CompassScreenState extends State<CompassScreen> {
                     child: CustomPaint(
                       painter: _CompassPainter(
                         headingDegrees: reading?.trueHeadingDegrees ?? 0,
-                        targetDeltaDegrees: delta,
+                        primaryDeltaDegrees: delta,
+                        targetCues: [
+                          if (delta != null)
+                            _CompassTargetCue(
+                              'V2',
+                              delta,
+                              const Color(0xFF29C7E8),
+                            ),
+                          if (gyroDelta != null)
+                            _CompassTargetCue(
+                              'G',
+                              gyroDelta,
+                              const Color(0xFF63D98A),
+                            ),
+                          if (fusionDelta != null)
+                            _CompassTargetCue(
+                              'F',
+                              fusionDelta,
+                              const Color(0xFFFFB454),
+                            ),
+                        ],
                         ready: !warming && !unstable,
                         centered: isCorrectPose && (reading?.centered ?? false),
                         colorScheme: Theme.of(context).colorScheme,
@@ -496,6 +652,8 @@ final class _CompassScreenState extends State<CompassScreen> {
                 : 'Letture stabilizzate',
             textAlign: TextAlign.center,
           ),
+          const Divider(height: 20),
+          _fieldComparisonPanel(context, reading),
           if (_showDebugPanel) ...[
             const Divider(height: 24),
             _debugPanel(context, reading),
@@ -509,6 +667,70 @@ final class _CompassScreenState extends State<CompassScreen> {
       ),
     ),
   );
+
+  Widget _fieldComparisonPanel(
+    BuildContext context,
+    PointingEngineReading? reading,
+  ) {
+    final gyroHeading = _fieldV3.snapshot.gyroHeadingDegrees;
+    final fusionHeading = _fieldV3.snapshot.guardedFusionHeadingDegrees;
+    final rows = <(String, Color, double?, double?)>[
+      (
+        'V2',
+        const Color(0xFF29C7E8),
+        reading?.trueHeadingDegrees,
+        reading?.horizontalDeltaDegrees,
+      ),
+      (
+        'V3 GYRO',
+        const Color(0xFF63D98A),
+        gyroHeading,
+        _fieldDelta(gyroHeading),
+      ),
+      (
+        'V3 FUSION',
+        const Color(0xFFFFB454),
+        fusionHeading,
+        _fieldDelta(fusionHeading),
+      ),
+    ];
+    return Column(
+      children: [
+        Text(
+          _fieldV3.anchored
+              ? 'CONFRONTO CAMPO'
+              : 'V3: attendi ancora automatica…',
+          style: Theme.of(
+            context,
+          ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 6),
+        for (final row in rows)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Row(
+              children: [
+                Container(width: 10, height: 10, color: row.$2),
+                const SizedBox(width: 6),
+                Expanded(child: Text(row.$1)),
+                Text(
+                  row.$3 == null
+                      ? '—'
+                      : '${row.$3!.toStringAsFixed(1)}°  Δ ${row.$4!.toStringAsFixed(1)}°',
+                ),
+              ],
+            ),
+          ),
+        const SizedBox(height: 4),
+        Text(
+          '● blu V2   ● verde Gyro   ● arancio Fusion',
+          style: Theme.of(context).textTheme.bodySmall,
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
 
   Color _guidanceColor(
     BuildContext context, {
@@ -541,6 +763,17 @@ final class _CompassScreenState extends State<CompassScreen> {
       screenPlaneTiltDegrees: tilt,
       correctVerticalLongEdgePose: tilt != null && (tilt - 90).abs() <= 18,
       engineState: reading.state.name,
+      v3GyroHeadingDegrees: _fieldV3.snapshot.gyroHeadingDegrees,
+      v3FusionHeadingDegrees: _fieldV3.snapshot.guardedFusionHeadingDegrees,
+      v3GyroDeltaDegrees: _fieldDelta(_fieldV3.snapshot.gyroHeadingDegrees),
+      v3FusionDeltaDegrees: _fieldDelta(
+        _fieldV3.snapshot.guardedFusionHeadingDegrees,
+      ),
+      absoluteSpreadDegrees: _fieldAbsoluteSpreadDegrees.isFinite
+          ? _fieldAbsoluteSpreadDegrees
+          : null,
+      projectedYawRateDegreesPerSecond:
+          _fieldProjectedYawRateRadiansPerSecond * 180 / math.pi,
     );
 
     setState(() => _debugMarks.add(mark));
@@ -548,8 +781,10 @@ final class _CompassScreenState extends State<CompassScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          'Bandierina #${_debugMarks.length}: errore '
-          '${mark.deltaDegrees.toStringAsFixed(2)}°',
+          'TARGET REALE #${_debugMarks.length} salvato • '
+          'V2 ${mark.deltaDegrees.toStringAsFixed(1)}° • '
+          'G ${mark.v3GyroDeltaDegrees?.toStringAsFixed(1) ?? '—'}° • '
+          'F ${mark.v3FusionDeltaDegrees?.toStringAsFixed(1) ?? '—'}°',
         ),
         duration: const Duration(milliseconds: 900),
       ),
@@ -570,7 +805,7 @@ final class _CompassScreenState extends State<CompassScreen> {
     return Column(
       children: [
         Text(
-          'DEBUG AZIMUT • MOTORE 2.2 INVARIATO',
+          'DEBUG CAMPO • V2 INVARIATO + V3 PARALLELO',
           textAlign: TextAlign.center,
           style: Theme.of(
             context,
@@ -614,6 +849,20 @@ final class _CompassScreenState extends State<CompassScreen> {
               : '${tilt.toStringAsFixed(1)}° • ${poseOk ? "OK" : "NO"}',
         ),
         line('Stato', reading?.state.name ?? '—'),
+        line(
+          'V3 anchor',
+          _fieldV3.anchored ? (_fieldAnchorEvent ?? 'OK') : 'attesa',
+        ),
+        line(
+          'Spread assoluto',
+          _fieldAbsoluteSpreadDegrees.isFinite
+              ? '${_fieldAbsoluteSpreadDegrees.toStringAsFixed(2)}°'
+              : '—',
+        ),
+        line(
+          'Yaw gyro',
+          '${(_fieldProjectedYawRateRadiansPerSecond * 180 / math.pi).toStringAsFixed(2)}°/s',
+        ),
         line('Bandierine', '${_debugMarks.length}'),
         const SizedBox(height: 6),
         Text(
@@ -662,6 +911,24 @@ final class _CompassScreenState extends State<CompassScreen> {
           'target_true_deg=${mark.targetAzimuthDegrees.toStringAsFixed(6)}',
         )
         ..writeln('delta_deg=${mark.deltaDegrees.toStringAsFixed(6)}')
+        ..writeln(
+          'v3_gyro_heading_deg=${mark.v3GyroHeadingDegrees?.toStringAsFixed(6) ?? ""}',
+        )
+        ..writeln(
+          'v3_gyro_delta_deg=${mark.v3GyroDeltaDegrees?.toStringAsFixed(6) ?? ""}',
+        )
+        ..writeln(
+          'v3_fusion_heading_deg=${mark.v3FusionHeadingDegrees?.toStringAsFixed(6) ?? ""}',
+        )
+        ..writeln(
+          'v3_fusion_delta_deg=${mark.v3FusionDeltaDegrees?.toStringAsFixed(6) ?? ""}',
+        )
+        ..writeln(
+          'absolute_spread_deg=${mark.absoluteSpreadDegrees?.toStringAsFixed(6) ?? ""}',
+        )
+        ..writeln(
+          'projected_yaw_rate_dps=${mark.projectedYawRateDegreesPerSecond.toStringAsFixed(6)}',
+        )
         ..writeln(
           'screen_plane_tilt_deg=${mark.screenPlaneTiltDegrees?.toStringAsFixed(6) ?? ""}',
         )
@@ -752,6 +1019,12 @@ final class _AzimuthDebugMark {
     required this.screenPlaneTiltDegrees,
     required this.correctVerticalLongEdgePose,
     required this.engineState,
+    required this.v3GyroHeadingDegrees,
+    required this.v3FusionHeadingDegrees,
+    required this.v3GyroDeltaDegrees,
+    required this.v3FusionDeltaDegrees,
+    required this.absoluteSpreadDegrees,
+    required this.projectedYawRateDegreesPerSecond,
   });
 
   final DateTime timestamp;
@@ -763,26 +1036,49 @@ final class _AzimuthDebugMark {
   final double? screenPlaneTiltDegrees;
   final bool correctVerticalLongEdgePose;
   final String engineState;
+  final double? v3GyroHeadingDegrees;
+  final double? v3FusionHeadingDegrees;
+  final double? v3GyroDeltaDegrees;
+  final double? v3FusionDeltaDegrees;
+  final double? absoluteSpreadDegrees;
+  final double projectedYawRateDegreesPerSecond;
+}
+
+final class _FieldTimedHeading {
+  const _FieldTimedHeading(this.time, this.heading);
+
+  final DateTime time;
+  final double heading;
+}
+
+final class _CompassTargetCue {
+  const _CompassTargetCue(this.label, this.deltaDegrees, this.color);
+
+  final String label;
+  final double deltaDegrees;
+  final Color color;
 }
 
 final class _CompassPainter extends CustomPainter {
   const _CompassPainter({
     required this.headingDegrees,
-    required this.targetDeltaDegrees,
+    required this.primaryDeltaDegrees,
+    required this.targetCues,
     required this.ready,
     required this.centered,
     required this.colorScheme,
   });
 
   final double headingDegrees;
-  final double? targetDeltaDegrees;
+  final double? primaryDeltaDegrees;
+  final List<_CompassTargetCue> targetCues;
   final bool ready;
   final bool centered;
   final ColorScheme colorScheme;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final delta = targetDeltaDegrees;
+    final delta = primaryDeltaDegrees;
     if (ready && delta != null && delta.abs() <= 15) {
       _paintPrecisionArc(canvas, size, delta);
     } else {
@@ -849,9 +1145,19 @@ final class _CompassPainter extends CustomPainter {
     }
 
     _paintReferenceArrow(canvas, center, radius);
-    if (ready && targetDeltaDegrees != null) {
-      final radians = targetDeltaDegrees! * math.pi / 180;
-      _paintTarget(canvas, center, radius - 6, radians);
+    if (ready) {
+      for (var index = 0; index < targetCues.length; index++) {
+        final cue = targetCues[index];
+        final radians = cue.deltaDegrees * math.pi / 180;
+        _paintTarget(
+          canvas,
+          center,
+          radius - 6 - index * 24,
+          radians,
+          color: cue.color,
+          label: cue.label,
+        );
+      }
     }
     canvas.drawCircle(center, 7, Paint()..color = colorScheme.primary);
   }
@@ -927,9 +1233,21 @@ final class _CompassPainter extends CustomPainter {
     }
 
     _paintReferenceArrow(canvas, center, radius);
-    final clamped = delta.clamp(-visibleRange, visibleRange).toDouble();
-    final targetAngle = -math.pi / 2 + (clamped / visibleRange) * halfSweep;
-    _paintTarget(canvas, center, radius - 4, targetAngle + math.pi / 2);
+    for (var index = 0; index < targetCues.length; index++) {
+      final cue = targetCues[index];
+      final clamped = cue.deltaDegrees
+          .clamp(-visibleRange, visibleRange)
+          .toDouble();
+      final targetAngle = -math.pi / 2 + (clamped / visibleRange) * halfSweep;
+      _paintTarget(
+        canvas,
+        center,
+        radius - 4 - index * 24,
+        targetAngle + math.pi / 2,
+        color: cue.color,
+        label: cue.label,
+      );
+    }
 
     final modeText = veryClose ? 'PRECISIONE ±6°' : 'AVVICINAMENTO ±20°';
     final tp = TextPainter(
@@ -962,19 +1280,29 @@ final class _CompassPainter extends CustomPainter {
     Canvas canvas,
     Offset center,
     double radius,
-    double radiansFromNorth,
-  ) {
+    double radiansFromNorth, {
+    required Color color,
+    required String label,
+  }) {
     final target = _polar(center, radius, radiansFromNorth);
-    final targetColor = centered
-        ? const Color(0xFF63D98A)
-        : colorScheme.primary;
     canvas.drawCircle(
       target,
-      22,
-      Paint()..color = targetColor.withValues(alpha: 0.20),
+      18,
+      Paint()..color = color.withValues(alpha: 0.22),
     );
-    canvas.drawCircle(target, 15, Paint()..color = targetColor);
-    canvas.drawCircle(target, 7, Paint()..color = colorScheme.surface);
+    canvas.drawCircle(target, 12, Paint()..color = color);
+    final tp = TextPainter(
+      text: TextSpan(
+        text: label,
+        style: TextStyle(
+          color: colorScheme.surface,
+          fontWeight: FontWeight.bold,
+          fontSize: 9,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, target - Offset(tp.width / 2, tp.height / 2));
   }
 
   static Offset _polar(Offset center, double radius, double degreesFromNorth) =>
@@ -986,7 +1314,8 @@ final class _CompassPainter extends CustomPainter {
   @override
   bool shouldRepaint(_CompassPainter oldDelegate) =>
       oldDelegate.headingDegrees != headingDegrees ||
-      oldDelegate.targetDeltaDegrees != targetDeltaDegrees ||
+      oldDelegate.primaryDeltaDegrees != primaryDeltaDegrees ||
+      oldDelegate.targetCues.toString() != targetCues.toString() ||
       oldDelegate.ready != ready ||
       oldDelegate.centered != centered ||
       oldDelegate.colorScheme != colorScheme;

@@ -7,6 +7,8 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../application/catalogue_controller.dart';
 import '../application/device_location_service.dart';
 import '../application/simulation_export_service.dart';
+import '../application/server_upload_services.dart';
+import '../application/location_share_service.dart';
 import '../core/domain/geo_point.dart';
 import '../core/domain/radio_beacon.dart';
 import '../core/elevation/terrain_profile_elevation_provider.dart';
@@ -26,6 +28,7 @@ final class CoverageScreen extends StatefulWidget {
     required this.exportService,
     required this.deviceId,
     required this.deviceName,
+    required this.serverUploadService,
     super.key,
   });
 
@@ -36,6 +39,7 @@ final class CoverageScreen extends StatefulWidget {
   final SimulationExportService exportService;
   final String deviceId;
   final String deviceName;
+  final GpsPointerServerUploadService serverUploadService;
 
   @override
   State<CoverageScreen> createState() => _CoverageScreenState();
@@ -58,6 +62,11 @@ final class _CoverageScreenState extends State<CoverageScreen> {
   bool _loadingLocation = false;
   bool _busy = false;
   bool _saved = false;
+  String? _resultSimulationId;
+  DateTime? _resultCreatedAtUtc;
+  bool _preflightBusy = false;
+  int _preflightGeneration = 0;
+  List<_BeaconPreflight> _preflight = const [];
   String? _error;
 
   GeoPoint? _start;
@@ -134,6 +143,7 @@ final class _CoverageScreenState extends State<CoverageScreen> {
         _currentLocation = reading;
         _loadingLocation = false;
       });
+      unawaited(_evaluateNearestBeacons());
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -158,6 +168,19 @@ final class _CoverageScreenState extends State<CoverageScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  _NearbyBeaconRecommendations(
+                    busy: _preflightBusy,
+                    items: _preflight,
+                    selectedId: _selectedBeacon?.id,
+                    onSelect: _busy
+                        ? null
+                        : (beacon) => setState(() {
+                            _selectedBeacon = beacon;
+                            _clearResult();
+                          }),
+                    onRetry: _loadingLocation ? null : _evaluateNearestBeacons,
+                  ),
+                  const SizedBox(height: 12),
                   Row(
                     children: [
                       Expanded(
@@ -487,6 +510,18 @@ final class _CoverageScreenState extends State<CoverageScreen> {
                         detail: true,
                       ),
                     ),
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: OutlinedButton.icon(
+                        onPressed: () => LocationShareService.share(
+                          label: 'Location A - Copertura',
+                          point: _start!,
+                        ),
+                        icon: const Icon(Icons.share_location_outlined),
+                        label: const Text('CONDIVIDI POSIZIONE A'),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -524,9 +559,17 @@ final class _CoverageScreenState extends State<CoverageScreen> {
                       ],
                     ),
                     const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _busy ? null : _uploadSimulation,
+                        icon: const Icon(Icons.cloud_upload_outlined),
+                        label: const Text('INVIA AL SERVER'),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     const Text(
-                      'PDF e invio diretto al server saranno aggiunti nel '
-                      'prossimo step senza cambiare il motore di calcolo.',
+                      'Il calcolo locale resta disponibile anche senza rete.',
                       textAlign: TextAlign.center,
                     ),
                   ],
@@ -562,6 +605,8 @@ final class _CoverageScreenState extends State<CoverageScreen> {
     _azimuth = null;
     _start = null;
     _saved = false;
+    _resultSimulationId = null;
+    _resultCreatedAtUtc = null;
   }
 
   Future<void> _calculate() async {
@@ -604,14 +649,153 @@ final class _CoverageScreenState extends State<CoverageScreen> {
         beacon.position,
       );
       if (!mounted) return;
+      final created = DateTime.now().toUtc();
       setState(() {
         _start = start;
         _profile = profile;
         _azimuth = azimuth;
+        _resultSimulationId = '${created.microsecondsSinceEpoch}';
+        _resultCreatedAtUtc = created;
       });
     } catch (error) {
       if (!mounted) return;
       setState(() => _error = _friendlyError(error));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _evaluateNearestBeacons() async {
+    final location = _currentLocation;
+    final catalogue = widget.catalogueController.catalogue;
+    if (location == null || catalogue == null || catalogue.beacons.isEmpty) {
+      return;
+    }
+    final generation = ++_preflightGeneration;
+    final origin = GeoPoint.validated(
+      latitude: location.latitude,
+      longitude: location.longitude,
+    );
+    final nearest = catalogue.beacons
+        .map(
+          (beacon) => _BeaconDistance(
+            beacon: beacon,
+            distanceMeters: RadioProfileEngine.haversineDistanceMeters(
+              origin,
+              beacon.position,
+            ),
+          ),
+        )
+        .toList();
+    nearest.sort((a, b) => a.distanceMeters!.compareTo(b.distanceMeters!));
+    if (mounted) {
+      setState(() {
+        _preflightBusy = true;
+        _preflight = const [];
+      });
+    }
+    final results = <_BeaconPreflight>[];
+    for (final item in nearest.take(4)) {
+      try {
+        final distance = item.distanceMeters!;
+        final count = RadioProfileEngine.sampleCountForDistance(distance);
+        final coordinates = RadioProfileEngine.geodesicCoordinates(
+          origin,
+          item.beacon.position,
+          count,
+        );
+        final elevations = await widget.profileElevationProvider.getElevations(
+          coordinates,
+        );
+        if (generation != _preflightGeneration) return;
+        final losHeight = _minimumInstallerHeight(
+          distance: distance,
+          elevations: elevations,
+          beacon: item.beacon,
+          fresnel: false,
+        );
+        final fresnelHeight = _minimumInstallerHeight(
+          distance: distance,
+          elevations: elevations,
+          beacon: item.beacon,
+          fresnel: true,
+        );
+        results.add(
+          _BeaconPreflight(
+            beacon: item.beacon,
+            distanceMeters: distance,
+            losRequiredHeightMeters: losHeight,
+            fresnelRequiredHeightMeters: fresnelHeight,
+          ),
+        );
+      } catch (_) {
+        results.add(
+          _BeaconPreflight(
+            beacon: item.beacon,
+            distanceMeters: item.distanceMeters!,
+            unavailable: true,
+          ),
+        );
+      }
+      if (mounted && generation == _preflightGeneration) {
+        setState(() => _preflight = List.unmodifiable(results));
+      }
+    }
+    if (mounted && generation == _preflightGeneration) {
+      setState(() => _preflightBusy = false);
+    }
+  }
+
+  double? _minimumInstallerHeight({
+    required double distance,
+    required List<double> elevations,
+    required RadioBeacon beacon,
+    required bool fresnel,
+  }) {
+    bool clearAt(double height) {
+      final profile = RadioProfileEngine.build(
+        distanceMeters: distance,
+        elevationsMeters: elevations,
+        installerAntennaHeightMeters: height,
+        targetAntennaHeightMeters: beacon.poleHeightMeters,
+        frequencyGhz: 5.8,
+      );
+      return fresnel
+          ? profile.firstFresnelClear == true
+          : profile.lineOfSightClear;
+    }
+
+    if (clearAt(0)) return 0;
+    if (!clearAt(15)) return null;
+    var low = 0.0;
+    var high = 15.0;
+    for (var i = 0; i < 14; i++) {
+      final mid = (low + high) / 2;
+      if (clearAt(mid)) {
+        high = mid;
+      } else {
+        low = mid;
+      }
+    }
+    return high;
+  }
+
+  Future<void> _uploadSimulation() async {
+    try {
+      setState(() {
+        _busy = true;
+        _error = null;
+      });
+      final simulation = _buildSimulation(requireName: false);
+      await widget.serverUploadService.uploadSimulation(simulation);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Copertura inviata al server.')),
+      );
+    } on ServerUploadException catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } catch (error) {
+      if (mounted) setState(() => _error = _friendlyError(error));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -730,9 +914,10 @@ final class _CoverageScreenState extends State<CoverageScreen> {
         'Inserisci un nome simulazione da 1 a 120 caratteri.',
       );
     }
-    final now = DateTime.now().toUtc();
+    final now = _resultCreatedAtUtc ?? DateTime.now().toUtc();
+    final resultId = _resultSimulationId ?? '${now.microsecondsSinceEpoch}';
     return RadioLinkSimulation(
-      id: '${now.microsecondsSinceEpoch}',
+      id: resultId,
       name: name,
       kind: RadioLinkSimulationKind.coverage,
       beaconId: beacon.id,
@@ -785,6 +970,200 @@ final class _CoverageScreenState extends State<CoverageScreen> {
     if (error is FormatException) return error.message;
     return 'Operazione non riuscita: $error';
   }
+}
+
+final class _BeaconPreflight {
+  const _BeaconPreflight({
+    required this.beacon,
+    required this.distanceMeters,
+    this.losRequiredHeightMeters,
+    this.fresnelRequiredHeightMeters,
+    this.unavailable = false,
+  });
+
+  final RadioBeacon beacon;
+  final double distanceMeters;
+  final double? losRequiredHeightMeters;
+  final double? fresnelRequiredHeightMeters;
+  final bool unavailable;
+}
+
+final class _NearbyBeaconRecommendations extends StatelessWidget {
+  const _NearbyBeaconRecommendations({
+    required this.busy,
+    required this.items,
+    required this.selectedId,
+    required this.onSelect,
+    required this.onRetry,
+  });
+
+  final bool busy;
+  final List<_BeaconPreflight> items;
+  final String? selectedId;
+  final ValueChanged<RadioBeacon>? onSelect;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    String status(double? requiredHeight, {required bool feminine}) {
+      if (requiredHeight == null) {
+        return 'OSTRUIT${feminine ? 'A' : 'O'} — oltre 15 m';
+      }
+      if (requiredHeight <= 0.05) return 'LIBER${feminine ? 'A' : 'O'}';
+      return 'OSTRUIT${feminine ? 'A' : 'O'} — alzarsi almeno ${requiredHeight.toStringAsFixed(1)} m';
+    }
+
+    Color statusColor(double? height) =>
+        height != null && height <= 0.05 ? Colors.green : Colors.red;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: .35),
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.near_me_outlined, size: 20),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Radiofari consigliati',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                ),
+                if (busy)
+                  const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Valutazione preliminare — solo profilo altimetrico del terreno. '
+              'Fresnel calcolata a 5,8 GHz.',
+              style: TextStyle(fontSize: 11),
+            ),
+            const SizedBox(height: 8),
+            if (items.isEmpty && !busy)
+              TextButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Calcola i 4 più vicini'),
+              ),
+            for (final item in items) ...[
+              InkWell(
+                onTap: onSelect == null ? null : () => onSelect!(item.beacon),
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  margin: const EdgeInsets.only(top: 6),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: selectedId == item.beacon.id
+                        ? Theme.of(
+                            context,
+                          ).colorScheme.primary.withValues(alpha: .10)
+                        : null,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: selectedId == item.beacon.id
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(
+                              context,
+                            ).colorScheme.outline.withValues(alpha: .25),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              item.beacon.name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '${(item.distanceMeters / 1000).toStringAsFixed(1)} km',
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 5),
+                      if (item.unavailable)
+                        const Text('Profilo non disponibile')
+                      else ...[
+                        _PreflightLine(
+                          label: 'LOS',
+                          text: status(
+                            item.losRequiredHeightMeters,
+                            feminine: true,
+                          ),
+                          color: statusColor(item.losRequiredHeightMeters),
+                        ),
+                        const SizedBox(height: 2),
+                        _PreflightLine(
+                          label: 'Fresnel 1',
+                          text: status(
+                            item.fresnelRequiredHeightMeters,
+                            feminine: true,
+                          ),
+                          color: statusColor(item.fresnelRequiredHeightMeters),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+final class _PreflightLine extends StatelessWidget {
+  const _PreflightLine({
+    required this.label,
+    required this.text,
+    required this.color,
+  });
+
+  final String label;
+  final String text;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Container(
+        width: 8,
+        height: 8,
+        margin: const EdgeInsets.only(top: 5),
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      ),
+      const SizedBox(width: 7),
+      SizedBox(width: 62, child: Text(label)),
+      Expanded(
+        child: Text(
+          text,
+          style: TextStyle(color: color, fontWeight: FontWeight.w800),
+        ),
+      ),
+    ],
+  );
 }
 
 final class _BeaconDistance {

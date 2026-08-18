@@ -5,6 +5,7 @@ import '../application/simulation_exchange_codec.dart';
 import '../application/simulation_export_service.dart';
 import '../application/simulation_import_service.dart';
 import '../application/simulation_pdf_service.dart';
+import '../application/server_upload_services.dart';
 import '../core/simulation/radio_link_simulation.dart';
 import '../core/simulation/radio_link_simulation_repository.dart';
 import 'simulation_review_screen.dart';
@@ -18,6 +19,7 @@ final class SimulationLibraryScreen extends StatefulWidget {
     required this.importService,
     required this.deviceId,
     required this.deviceName,
+    required this.serverUploadService,
     required this.onCreate,
     super.key,
   });
@@ -29,6 +31,7 @@ final class SimulationLibraryScreen extends StatefulWidget {
   final SimulationImportService importService;
   final String deviceId;
   final String deviceName;
+  final GpsPointerServerUploadService serverUploadService;
   final Future<void> Function() onCreate;
 
   @override
@@ -145,6 +148,7 @@ final class _SimulationLibraryScreenState
                         onDuplicate: () => _duplicate(simulation),
                         onExport: () => _export(simulation),
                         onPdf: () => _pdf(simulation),
+                        onUpload: () => _upload(simulation),
                         onDelete: () => _delete(simulation),
                       ),
                       const SizedBox(height: 10),
@@ -187,6 +191,24 @@ final class _SimulationLibraryScreenState
 
   Future<void> _pdf(RadioLinkSimulation simulation) =>
       widget.pdfService.createAndShare(simulation);
+
+  Future<void> _upload(RadioLinkSimulation simulation) async {
+    setState(() => _busy = true);
+    try {
+      await widget.serverUploadService.uploadSimulation(simulation);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Simulazione inviata al server.')),
+      );
+    } on ServerUploadException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   Future<void> _duplicate(RadioLinkSimulation source) async {
     final now = DateTime.now().toUtc();
@@ -393,6 +415,7 @@ final class _SimulationCard extends StatelessWidget {
     required this.onDuplicate,
     required this.onExport,
     required this.onPdf,
+    required this.onUpload,
     required this.onDelete,
   });
 
@@ -401,6 +424,7 @@ final class _SimulationCard extends StatelessWidget {
   final VoidCallback onDuplicate;
   final VoidCallback onExport;
   final VoidCallback onPdf;
+  final VoidCallback onUpload;
   final VoidCallback onDelete;
 
   @override
@@ -442,6 +466,7 @@ final class _SimulationCard extends StatelessWidget {
                   if (value == 'duplicate') onDuplicate();
                   if (value == 'export') onExport();
                   if (value == 'pdf') onPdf();
+                  if (value == 'upload') onUpload();
                   if (value == 'delete') onDelete();
                 },
                 itemBuilder: (_) => const [
@@ -451,6 +476,10 @@ final class _SimulationCard extends StatelessWidget {
                     child: Text('Esporta .gpspsim'),
                   ),
                   PopupMenuItem(value: 'pdf', child: Text('PDF')),
+                  PopupMenuItem(
+                    value: 'upload',
+                    child: Text('Invia al server'),
+                  ),
                   PopupMenuItem(value: 'delete', child: Text('Elimina')),
                 ],
               ),

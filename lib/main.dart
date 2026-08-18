@@ -12,6 +12,8 @@ import 'application/catalogue_export_service.dart';
 import 'application/pointing_controller.dart';
 import 'application/simulation_export_service.dart';
 import 'application/incoming_simulation_bridge.dart';
+import 'application/intervention_report_pdf_service.dart';
+import 'application/server_upload_services.dart';
 import 'application/simulation_exchange_codec.dart';
 import 'core/core.dart';
 import 'infrastructure/android_device_orientation_service.dart';
@@ -19,6 +21,7 @@ import 'infrastructure/geolocator_device_location_service.dart';
 import 'infrastructure/file_device_installation_id_service.dart';
 import 'infrastructure/json_radio_beacon_repository.dart';
 import 'infrastructure/json_radio_link_simulation_repository.dart';
+import 'infrastructure/json_intervention_report_repository.dart';
 import 'infrastructure/open_meteo_elevation_provider.dart';
 import 'infrastructure/open_meteo_profile_elevation_provider.dart';
 import 'infrastructure/system_radio_beacon_file_picker.dart';
@@ -39,6 +42,9 @@ Future<void> main() async {
   );
   final simulationRepository = JsonRadioLinkSimulationRepository(
     File('${supportDirectory.path}/gps_pointer_simulations.json'),
+  );
+  final interventionReportRepository = JsonInterventionReportRepository(
+    File('${supportDirectory.path}/gps_pointer_intervention_reports.json'),
   );
   final identityService = FileDeviceInstallationIdService(
     File('${supportDirectory.path}/gps_pointer_installation_id.txt'),
@@ -75,6 +81,13 @@ Future<void> main() async {
         controller.deviceDisplayName ?? 'GPS Pointer Android',
     appVersion: appVersion,
   );
+  final serverUploadService = GpsPointerServerUploadService(
+    client: httpClient,
+    authController: authController,
+    baseUri: Uri.parse('https://gpspointer.ernet.it:9443'),
+    deviceId: controller.installationId,
+    deviceName: controller.deviceDisplayName ?? 'GPS Pointer Android',
+  );
   runApp(
     LaunchSplashGate(
       theme: visualThemeController.theme,
@@ -86,6 +99,9 @@ Future<void> main() async {
         profileElevationProvider: profileElevationProvider,
         simulationRepository: simulationRepository,
         simulationExportService: ShareSimulationExportService(),
+        interventionReportRepository: interventionReportRepository,
+        interventionReportPdfService: const InterventionReportPdfService(),
+        serverUploadService: serverUploadService,
         pointingController: PointingController(
           locationService: locationService,
           elevationProvider: elevationProvider,
