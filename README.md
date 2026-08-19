@@ -1,105 +1,150 @@
-﻿# GPS Pointer
+# GPS Pointer 2.4
 
-GPS Pointer è un'app Android per aiutare installatori e tecnici a individuare
-la direzione di un radiofaro partendo dalla posizione corrente del telefono.
-Fornisce distanza, azimut, mappa, bussola orizzontale, inclinometro per il tilt
-dell'antenna e una guida AR approssimativa tramite fotocamera.
+GPS Pointer è un’app Android pensata per installatori e tecnici che devono individuare, verificare e puntare collegamenti radio verso postazioni radio note.
 
-Baseline corrente: **1.0.0+21**
-Piattaforma: **Android**
-Package: `io.github.fraidotube.gpspointer`
+La release corrente è:
+
+**GPS Pointer 2.4 — build 55**
 
 ## Funzioni principali
 
-- radiofari ordinati automaticamente dal più vicino;
-- ricerca per nome, ID o coordinate e filtro entro un raggio configurabile;
-- distanza e azimut rispetto alla posizione corrente;
-- Google Maps con osservatore, radiofaro e linea di collegamento;
-- bussola Azimut in landscape con stabilizzazione e guida illustrata;
-- modalitÃ  Tilt in portrait, usando gravitÃ  e accelerometro;
-- modalitÃ  AR con istruzioni, stabilizzazione e bersaglio sui due assi;
-- guida sonora facoltativa: bip più rapidi avvicinandosi e tono continuo al
-  centro;
-- archivio locale importabile ed esportabile in formato TXT v3;
-- aggiunta manuale con ID automatico e coordinate GPS precompilate;
-- identitÃ  leggibile del dispositivo e provenienza dei file esportati.
+- Catalogo locale delle postazioni radio.
+- Ordinamento delle postazioni per distanza dalla posizione corrente.
+- Ricerca e selezione rapida del radiofaro.
+- Condivisione della posizione.
+- Apertura diretta delle indicazioni stradali.
+- Azimut verso la postazione.
+- Puntamento AR.
+- Calcolo tilt antenna.
+- Altimetria.
+- Verifica collegamento punto-punto.
+- Calcolo copertura radio.
+- Archivio simulazioni.
+- Rapporto d’intervento con firme e PDF.
+- Import/export TXT del catalogo radiofari.
+- Sincronizzazione con catalogo server.
+- Radar meteo.
+- Meteo corrente e previsioni.
 
-La bussola e la modalitÃ  AR aiutano il puntamento, ma non sostituiscono la
-misura radio o il collaudo tecnico dell'installazione.
+## Copertura radio
 
+La funzione Copertura utilizza il profilo altimetrico reale del terreno per valutare il collegamento.
 
-## Altimetria e simulazioni (1.0.0+21)
+All’apertura vengono analizzati esclusivamente i **4 radiofari più vicini** alla posizione dell’installatore.
 
-- nuovo pulsante **Altimetria** su ogni radiofaro;
-- coordinate di partenza manuali oppure **CALCOLA DA QUI** via GPS;
-- profilo terreno Open-Meteo / Copernicus DEM GLO-90;
-- stesso motore numerico del server per curvatura terrestre K=4/3, LOS e prima Fresnel;
-- distanza, azimut vero, tilt teorico, quote, margini e grafico del profilo;
-- archivio locale delle simulazioni;
-- eliminazione ed esportazione in formato versionato `.gpspsim`;
-- nessun PDF generato dall'app.
+Per ciascuno vengono valutati:
 
-## Primo avvio
+- linea di vista;
+- zona di Fresnel;
+- eventuale altezza aggiuntiva necessaria;
+- limite operativo fino a 15 metri di altezza installatore.
 
-1. Inserire un nome riconoscibile per il telefono.
-2. Importare `radiofari_gps_pointer.txt`.
-3. Concedere la posizione quando richiesta.
-4. Attendere l'acquisizione GPS: l'elenco viene ordinato dal più vicino.
-5. Selezionare un radiofaro e scegliere Mappa, Azimut, Tilt o AR.
+Gli altri radiofari possono essere selezionati manualmente dal menu e vengono calcolati solo quando viene richiesto esplicitamente il calcolo della copertura.
 
-Le quote mancanti vengono richieste a Open-Meteo. L'altezza del telefono sopra
-il suolo viene chiesta soltanto nelle funzioni che la usano realmente: Tilt e
-AR.
+Questo evita interrogazioni altimetriche inutili.
 
-## Configurazione sviluppo
+## Punto-Punto
 
-Requisiti della baseline:
+La sezione Punto-Punto permette di creare simulazioni tra due coordinate o postazioni radio.
 
-- Flutter `3.44.8` stable;
-- Dart `3.12.2`;
-- Android SDK con API compatibile;
-- Android minimo API 24;
-- dispositivo reale con GPS; magnetometro necessario per Azimut e AR.
+Sono disponibili:
 
-La chiave Google Maps è letta da `android/local.properties`:
+- profilo altimetrico;
+- linea di vista;
+- Fresnel;
+- distanza;
+- quote;
+- condivisione delle posizioni;
+- salvataggio e riapertura delle simulazioni.
 
-```properties
-MAPS_API_KEY=CHIAVE_GOOGLE_MAPS
-```
+## Azimut, AR e Tilt
 
-La chiave deve essere limitata almeno al package Android e alla Maps SDK for
-Android. L'APK puÃ² essere distribuito ai collaudatori senza consegnare i
-sorgenti o il file della chiave.
+GPS Pointer integra strumenti dedicati al puntamento sul campo:
 
-## Verifica e avvio
+- bussola verso il target;
+- correzione rispetto al Nord vero;
+- modalità AR;
+- strumenti diagnostici;
+- calcolo inclinazione antenna.
 
-```powershell
-flutter clean
-flutter pub get
-dart format lib test
-flutter analyze
-flutter test
-flutter run
-```
+Il motore di puntamento utilizzato sul campo è stato validato tramite prove reali.
 
-Gate minimo: nessun errore in `flutter analyze`, tutti i test superati e prova
-reale di GPS, Mappa, Azimut, Tilt, AR, audio e persistenza del catalogo.
+## Meteo
 
-## APK di test 1.0
+Il meteo ordinario utilizza **MET Norway Locationforecast**.
 
-```powershell
-flutter build apk --release --build-name=1.0.0 --build-number=19
-Copy-Item ".\build\app\outputs\flutter-apk\app-release.apk" ".\GPS-Pointer-1.0.0-rev19.apk"
-```
+Il radar precipitazioni utilizza **RainViewer**.
 
-Questa baseline usa ancora la firma debug anche per il build `release`: va bene
-per il collaudo interno, ma prima di una distribuzione stabile occorre creare e
-proteggere una chiave di firma release.
+Le informazioni meteo sono mostrate:
 
-## Documentazione essenziale
+- nella Home;
+- nel dettaglio della postazione radio;
+- nella schermata Radar meteo.
 
-- `docs/PROJECT_STATE.md`: fotografia completa per riprendere lo sviluppo.
-- `docs/CHANGELOG.md`: evoluzione di tutte le versioni consegnate.
-- `docs/ROADMAP.md`: prossimi macroblocchi, a partire dall'autenticazione LDAP.
+## Altimetria
 
-Il repository è privato e non è associato a una licenza open source.
+Open-Meteo viene utilizzato esclusivamente per i servizi che richiedono dati altimetrici e profili del terreno.
+
+Non viene utilizzato per il meteo ordinario.
+
+## Catalogo server
+
+L’app può scaricare e aggiornare il catalogo delle postazioni dal server GPS Pointer.
+
+Sono disponibili:
+
+- aggiornamento catalogo;
+- import TXT;
+- export TXT;
+- reset catalogo locale.
+
+## Rapporti di intervento
+
+L’app permette di compilare rapporti di intervento direttamente sul telefono.
+
+Il flusso include:
+
+- dati intervento;
+- attività eseguite;
+- firme touch;
+- generazione PDF;
+- archivio locale;
+- condivisione;
+- invio al server.
+
+## Privacy
+
+GPS Pointer è progettato principalmente per lavorare con dati locali sul dispositivo.
+
+Le informazioni vengono inviate a servizi esterni solo quando una funzione lo richiede, ad esempio:
+
+- meteo;
+- radar;
+- altimetria;
+- sincronizzazione con il server GPS Pointer.
+
+## Piattaforma
+
+- Android
+- Flutter
+- package: `it.fraido.gpspointer`
+
+## Release
+
+Versione corrente:
+
+`GPS Pointer 2.4`
+
+Build Android:
+
+`1.0.0+55`
+
+Tag Git:
+
+`release-2.4`
+
+Le release precedenti restano disponibili tramite i relativi tag Git.
+
+---
+
+Developed by **fraidotube**
