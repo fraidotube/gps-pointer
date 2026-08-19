@@ -10,21 +10,23 @@ enum AppVisualTheme {
   String get storageValue => name;
 
   String get label => switch (this) {
-    AppVisualTheme.classic => 'Classico',
-    AppVisualTheme.radarPro => 'Radar Pro',
+    AppVisualTheme.classic => 'Semplice',
+    AppVisualTheme.radarPro => 'Pro',
   };
 
   String get description => switch (this) {
     AppVisualTheme.classic =>
-      'Tema storico GPS Pointer con Fry, sobrio e operativo.',
+      'Interfaccia essenziale, pulita e leggera. Tutte le funzioni operative '
+          'restano disponibili con una grafica lineare.',
     AppVisualTheme.radarPro =>
-      'Interfaccia completamente Radar Pro: niente Fry, navy, cyan, ambra e pannelli strumentali.',
+      'Interfaccia completa con grafica tecnica, meteo e strumenti avanzati. '
+          'Tema consigliato.',
   };
 
   static AppVisualTheme fromStorage(String? value) =>
       AppVisualTheme.values.firstWhere(
         (item) => item.storageValue == value?.trim(),
-        orElse: () => AppVisualTheme.classic,
+        orElse: () => AppVisualTheme.radarPro,
       );
 }
 
@@ -59,7 +61,7 @@ final class AppVisualThemeController extends ChangeNotifier {
   AppVisualThemeController({
     required this._storageFile,
     this._launcherIconBridge = const AndroidLauncherIconBridge(),
-    AppVisualTheme initialTheme = AppVisualTheme.classic,
+    AppVisualTheme initialTheme = AppVisualTheme.radarPro,
   }) : _theme = initialTheme;
 
   final File _storageFile;
@@ -77,7 +79,7 @@ final class AppVisualThemeController extends ChangeNotifier {
         _theme = AppVisualTheme.fromStorage(await _storageFile.readAsString());
       }
     } on FileSystemException {
-      _theme = AppVisualTheme.classic;
+      _theme = AppVisualTheme.radarPro;
     }
     notifyListeners();
   }
@@ -222,7 +224,7 @@ ThemeData gpsPointerTheme(AppVisualTheme mode) {
   }
 
   const background = Color(0xFF020A11);
-  const backgroundTop = Color(0xFF07354D);
+  const backgroundTop = Color(0xFF061722);
   const panel = Color(0xE80B2231);
   const panelStrong = Color(0xFF123A50);
   const border = Color(0xFF2E6D89);
@@ -395,18 +397,18 @@ final class GpsThemeBackground extends StatelessWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
-        DecoratedBox(
+        const DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: [style.backgroundTop, style.backgroundBottom],
-              stops: const [0, .72],
+              colors: [Color(0xFF061722), Color(0xFF031019), Color(0xFF020A11)],
+              stops: [0, .48, 1],
             ),
           ),
         ),
         const IgnorePointer(
-          child: CustomPaint(painter: _TopographicBackdropPainter()),
+          child: CustomPaint(painter: _ProfessionalGridBackdropPainter()),
         ),
         child,
       ],
@@ -414,34 +416,23 @@ final class GpsThemeBackground extends StatelessWidget {
   }
 }
 
-final class _TopographicBackdropPainter extends CustomPainter {
-  const _TopographicBackdropPainter();
+final class _ProfessionalGridBackdropPainter extends CustomPainter {
+  const _ProfessionalGridBackdropPainter();
 
   @override
   void paint(Canvas canvas, Size size) {
-    final linePaint = Paint()
-      ..color = const Color(0xFF64D4EA).withValues(alpha: .055)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
+    final paint = Paint()
+      ..color = const Color(0xFF5BD8EA).withValues(alpha: .018)
+      ..strokeWidth = .7;
 
-    for (var line = 0; line < 11; line++) {
-      final path = Path();
-      final baseY = size.height * (.06 + line * .095);
-      path.moveTo(-20, baseY);
-      for (double x = -20; x <= size.width + 20; x += 28) {
-        final normalized = x / (size.width == 0 ? 1 : size.width);
-        final y =
-            baseY +
-            9 * _pseudoWave(normalized * 7.0 + line * .61) +
-            4 * _pseudoWave(normalized * 15.0 + line * .23);
-        path.lineTo(x, y);
-      }
-      canvas.drawPath(path, linePaint);
+    const step = 54.0;
+    for (double x = 0; x < size.width; x += step) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+    }
+    for (double y = 0; y < size.height; y += step) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
     }
   }
-
-  double _pseudoWave(double value) =>
-      (value % 2.0 <= 1.0 ? value % 1.0 : 1.0 - value % 1.0) * 2 - 1;
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;

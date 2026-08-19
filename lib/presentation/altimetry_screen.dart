@@ -382,6 +382,7 @@ final class _AltimetryScreenState extends State<AltimetryScreen> {
     final simulation = RadioLinkSimulation(
       id: '${now.microsecondsSinceEpoch}',
       name: name,
+      kind: RadioLinkSimulationKind.coverage,
       beaconId: widget.beacon.id,
       beaconName: widget.beacon.name,
       startPosition: start,

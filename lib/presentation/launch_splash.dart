@@ -115,57 +115,190 @@ final class _RadarProSplash extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    backgroundColor: const Color(0xFF04111A),
+    backgroundColor: const Color(0xFF03131E),
     body: Stack(
       fit: StackFit.expand,
       children: [
-        const _MockupBackground(stronger: true),
-        AnimatedBuilder(
-          animation: animation,
-          builder: (context, _) => CustomPaint(
-            painter: _RadarSweepPainter(progress: animation.value),
+        Positioned.fill(
+          top: -6,
+          bottom: -6,
+          child: ClipRect(
+            child: Transform(
+              alignment: Alignment.centerRight,
+              transform: Matrix4.diagonal3Values(1.065, 1, 1),
+              child: Image.asset(
+                'asset/pro_splash_background.png',
+                fit: BoxFit.cover,
+                alignment: Alignment.center,
+                filterQuality: FilterQuality.high,
+              ),
+            ),
+          ),
+        ),
+        const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color(0x7703131E),
+                Color(0x1103131E),
+                Color(0x22000000),
+                Color(0x88000000),
+              ],
+              stops: [0, .38, .68, 1],
+            ),
           ),
         ),
         SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(28, 28, 28, 24),
-            child: Column(
-              children: [
-                const Spacer(flex: 2),
-                AnimatedBuilder(
-                  animation: animation,
-                  builder: (context, _) => Transform.rotate(
-                    angle: animation.value * math.pi * 2,
-                    child: const _GpsPointerMark(size: 152),
-                  ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxHeight < 760;
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(28, 22, 28, 24),
+                child: Column(
+                  children: [
+                    SizedBox(height: compact ? 10 : 28),
+                    TweenAnimationBuilder<double>(
+                      duration: const Duration(milliseconds: 900),
+                      curve: Curves.easeOutCubic,
+                      tween: Tween<double>(begin: 0, end: 1),
+                      builder: (context, value, child) => Opacity(
+                        opacity: value,
+                        child: Transform.translate(
+                          offset: Offset(0, 14 * (1 - value)),
+                          child: Transform.scale(
+                            scale: .94 + (.06 * value),
+                            child: child,
+                          ),
+                        ),
+                      ),
+                      child: const _ProSplashWordmark(),
+                    ),
+                    const SizedBox(height: 18),
+                    const Text(
+                      'PUNTA. MISURA. CONNETTI.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: .8,
+                        shadows: [Shadow(color: Colors.black87, blurRadius: 8)],
+                      ),
+                    ),
+                    const Spacer(),
+                    AnimatedBuilder(
+                      animation: animation,
+                      builder: (context, child) => Opacity(
+                        opacity:
+                            .72 +
+                            .28 *
+                                ((math.sin(animation.value * math.pi * 2) + 1) /
+                                    2),
+                        child: child,
+                      ),
+                      child: const _LoadingStrip(
+                        label: 'Caricamento dati...',
+                        accent: Color(0xFFFFA026),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 26),
-                const _GradientBrandTitle(),
-                const SizedBox(height: 9),
-                const Text(
-                  'P U N T A  ·  M I S U R A  ·  C O N N E T T I',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Color(0xFF80DBED),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.15,
-                  ),
-                ),
-                const SizedBox(height: 34),
-                const _InstrumentPanel(),
-                const Spacer(flex: 3),
-                const _LoadingStrip(
-                  label: 'INIZIALIZZAZIONE STRUMENTI',
-                  accent: Color(0xFFFFA026),
-                ),
-              ],
-            ),
+              );
+            },
           ),
         ),
       ],
     ),
   );
+}
+
+final class _ProSplashWordmark extends StatelessWidget {
+  const _ProSplashWordmark();
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      const SizedBox(
+        width: 128,
+        height: 128,
+        child: CustomPaint(painter: _ProCompassLogoPainter()),
+      ),
+      const SizedBox(height: 6),
+      const Text(
+        'GPS',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 45,
+          height: .92,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 2,
+          shadows: [Shadow(color: Colors.black87, blurRadius: 8)],
+        ),
+      ),
+      const SizedBox(height: 2),
+      const Text(
+        'P O I N T E R',
+        style: TextStyle(
+          color: Color(0xFFFFA026),
+          fontSize: 14,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 4.1,
+          shadows: [Shadow(color: Colors.black87, blurRadius: 6)],
+        ),
+      ),
+    ],
+  );
+}
+
+final class _ProCompassLogoPainter extends CustomPainter {
+  const _ProCompassLogoPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.shortestSide * .36;
+
+    final ring = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = size.shortestSide * .045
+      ..strokeCap = StrokeCap.round;
+
+    for (var i = 0; i < 4; i++) {
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        (-math.pi / 4) + i * math.pi / 2,
+        math.pi / 2 - .34,
+        false,
+        ring,
+      );
+    }
+
+    final whiteNeedle = Path()
+      ..moveTo(size.width * .23, size.height * .79)
+      ..lineTo(size.width * .50, size.height * .48)
+      ..lineTo(size.width * .44, size.height * .63)
+      ..close();
+    canvas.drawPath(whiteNeedle, Paint()..color = Colors.white);
+
+    final orangeNeedle = Path()
+      ..moveTo(size.width * .45, size.height * .55)
+      ..lineTo(size.width * .82, size.height * .18)
+      ..lineTo(size.width * .61, size.height * .61)
+      ..close();
+    canvas.drawPath(orangeNeedle, Paint()..color = const Color(0xFFFFA026));
+
+    canvas.drawCircle(
+      center,
+      size.shortestSide * .055,
+      Paint()..color = const Color(0xFF071A26),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 final class _ClassicSplash extends StatelessWidget {
@@ -285,91 +418,6 @@ final class _MockupBackground extends StatelessWidget {
         ),
       ),
       CustomPaint(painter: _TopoPainter(opacity: stronger ? .15 : .09)),
-    ],
-  );
-}
-
-final class _GradientBrandTitle extends StatelessWidget {
-  const _GradientBrandTitle();
-
-  @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      ShaderMask(
-        shaderCallback: (bounds) => const LinearGradient(
-          colors: [Colors.white, Color(0xFF9EEBFF)],
-        ).createShader(bounds),
-        child: const Text(
-          'GPS',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 54,
-            height: .9,
-            fontWeight: FontWeight.w900,
-            fontStyle: FontStyle.italic,
-            letterSpacing: 2,
-          ),
-        ),
-      ),
-      const Text(
-        'Pointer',
-        style: TextStyle(
-          color: Color(0xFF48D5F2),
-          fontSize: 36,
-          height: 1,
-          fontWeight: FontWeight.w700,
-          fontStyle: FontStyle.italic,
-          letterSpacing: 1.5,
-        ),
-      ),
-    ],
-  );
-}
-
-final class _InstrumentPanel extends StatelessWidget {
-  const _InstrumentPanel();
-
-  @override
-  Widget build(BuildContext context) => Container(
-    width: 280,
-    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-    decoration: BoxDecoration(
-      color: const Color(0xB80B2231),
-      borderRadius: BorderRadius.circular(18),
-      border: Border.all(color: const Color(0xFF2A6C88)),
-    ),
-    child: const Row(
-      mainAxisAlignment: MainAxisAlignment.spaceAround,
-      children: [
-        _InstrumentItem(icon: Icons.explore, label: 'AZIMUT'),
-        _InstrumentItem(icon: Icons.network_check, label: 'LINK'),
-        _InstrumentItem(icon: Icons.view_in_ar, label: 'AR'),
-      ],
-    ),
-  );
-}
-
-final class _InstrumentItem extends StatelessWidget {
-  const _InstrumentItem({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) => Column(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Icon(icon, color: Color(0xFF7EE6F6), size: 24),
-      SizedBox(height: 5),
-      Text(
-        label,
-        style: TextStyle(
-          color: Color(0xFFA7C7D4),
-          fontSize: 9,
-          fontWeight: FontWeight.w700,
-          letterSpacing: .8,
-        ),
-      ),
     ],
   );
 }
@@ -516,38 +564,4 @@ final class _TopoPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _TopoPainter oldDelegate) =>
       oldDelegate.opacity != opacity;
-}
-
-final class _RadarSweepPainter extends CustomPainter {
-  const _RadarSweepPainter({required this.progress});
-
-  final double progress;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width * .50, size.height * .41);
-    final radius = math.min(size.width, size.height) * .33;
-
-    final ringPaint = Paint()
-      ..color = const Color(0xFF28CDE9).withValues(alpha: .09)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.1;
-
-    for (var i = 1; i <= 5; i++) {
-      canvas.drawCircle(center, radius * i / 5, ringPaint);
-    }
-
-    final sweepPaint = Paint()
-      ..shader = SweepGradient(
-        colors: const [Color(0x001AC5E3), Color(0x551AC5E3), Color(0x001AC5E3)],
-        stops: const [0, .12, .30],
-        transform: GradientRotation(progress * math.pi * 2),
-      ).createShader(Rect.fromCircle(center: center, radius: radius));
-
-    canvas.drawCircle(center, radius, sweepPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _RadarSweepPainter oldDelegate) =>
-      oldDelegate.progress != progress;
 }

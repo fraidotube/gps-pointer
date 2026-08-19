@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
@@ -7,21 +8,43 @@ import 'package:flutter_compass/flutter_compass.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:sensors_plus/sensors_plus.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../application/app_auth.dart';
 import '../application/app_visual_theme.dart';
+import '../application/app_file_association_settings.dart';
 import '../application/catalogue_controller.dart';
 import '../application/pointing_controller.dart';
 import '../application/device_location_service.dart';
+import '../application/diagnostic_log_store.dart';
 import '../application/simulation_export_service.dart';
+import '../application/simulation_import_service.dart';
+import '../application/simulation_pdf_service.dart';
+import '../application/intervention_report_pdf_service.dart';
+import '../application/location_share_service.dart';
+import '../application/server_upload_services.dart';
+import '../application/weather_service.dart';
 import '../core/core.dart';
+import '../core/intervention_report.dart';
+import '../core/geo/pointing_engine_v3_field.dart';
 import 'app_auth_gate.dart';
 import 'antenna_tilt_screen.dart';
 import 'compass_screen.dart';
 import 'guidance_overlay.dart';
+import 'main_hub_screen.dart';
+import 'debug_tools_screen.dart';
+import 'coverage_screen.dart';
+import 'ptp_screen.dart';
+import 'add_radio_station_screen.dart';
 import 'altimetry_screen.dart';
 import 'simulations_screen.dart';
+import 'intervention_reports_screen.dart';
+import 'server_catalogue_screen.dart';
+import 'weather_radar_screen.dart';
+
+final GlobalKey<NavigatorState> gpsPointerNavigatorKey =
+    GlobalKey<NavigatorState>();
 
 final class GpsPointerApp extends StatelessWidget {
   const GpsPointerApp({
@@ -30,9 +53,13 @@ final class GpsPointerApp extends StatelessWidget {
     required this.controller,
     required this.pointingController,
     required this.locationService,
+    this.weatherService,
     required this.profileElevationProvider,
     required this.simulationRepository,
     required this.simulationExportService,
+    this.interventionReportRepository,
+    this.interventionReportPdfService,
+    this.serverUploadService,
     super.key,
   });
 
@@ -41,14 +68,19 @@ final class GpsPointerApp extends StatelessWidget {
   final CatalogueController controller;
   final PointingController pointingController;
   final DeviceLocationService locationService;
+  final WeatherService? weatherService;
   final TerrainProfileElevationProvider profileElevationProvider;
   final RadioLinkSimulationRepository simulationRepository;
   final SimulationExportService simulationExportService;
+  final InterventionReportRepository? interventionReportRepository;
+  final InterventionReportPdfService? interventionReportPdfService;
+  final GpsPointerServerUploadService? serverUploadService;
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: visualThemeController,
     builder: (context, _) => MaterialApp(
+      navigatorKey: gpsPointerNavigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'GPS Pointer',
       themeMode: ThemeMode.dark,
@@ -62,22 +94,139 @@ final class GpsPointerApp extends StatelessWidget {
             controller: controller,
             pointingController: pointingController,
             locationService: locationService,
+            weatherService: weatherService,
             profileElevationProvider: profileElevationProvider,
             simulationRepository: simulationRepository,
             simulationExportService: simulationExportService,
           );
-          if (controller.deviceDisplayName == null) {
+          if (controller.deviceDisplayName == null ||
+              controller.catalogue == null) {
             return catalogueScreen;
           }
           return AppAuthGate(
             controller: authController,
-            child: catalogueScreen,
+            child: Builder(
+              builder: (navContext) => MainHubScreen(
+                visualThemeController: visualThemeController,
+                locationService: locationService,
+                weatherService: weatherService,
+                onPostazioni: () => Navigator.of(navContext).push<void>(
+                  MaterialPageRoute<void>(builder: (_) => catalogueScreen),
+                ),
+                onCopertura: () => Navigator.of(navContext).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) => SimulationLibraryScreen(
+                      kind: RadioLinkSimulationKind.coverage,
+                      repository: simulationRepository,
+                      exportService: simulationExportService,
+                      pdfService: const SimulationPdfService(),
+                      importService: const SimulationImportService(),
+                      deviceId: controller.installationId,
+                      deviceName: controller.deviceDisplayName!,
+                      serverUploadService: serverUploadService!,
+                      onCreate: () => Navigator.of(navContext).push<void>(
+                        MaterialPageRoute<void>(
+                          builder: (_) => CoverageScreen(
+                            catalogueController: controller,
+                            locationService: locationService,
+                            profileElevationProvider: profileElevationProvider,
+                            simulationRepository: simulationRepository,
+                            exportService: simulationExportService,
+                            deviceId: controller.installationId,
+                            deviceName: controller.deviceDisplayName!,
+                            serverUploadService: serverUploadService!,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                onRapporti: () => Navigator.of(navContext).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) => InterventionReportsScreen(
+                      repository: interventionReportRepository!,
+                      pdfService: interventionReportPdfService!,
+                      uploadService: serverUploadService!,
+                      defaultTechnicianName:
+                          authController.user?.displayName ??
+                          authController.savedDisplayName ??
+                          authController.user?.username ??
+                          authController.savedUsername ??
+                          '',
+                    ),
+                  ),
+                ),
+                onWeatherRadar: () => Navigator.of(navContext).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) =>
+                        WeatherRadarScreen(locationService: locationService),
+                  ),
+                ),
+                onPtp: () => Navigator.of(navContext).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) => SimulationLibraryScreen(
+                      kind: RadioLinkSimulationKind.ptp,
+                      repository: simulationRepository,
+                      exportService: simulationExportService,
+                      pdfService: const SimulationPdfService(),
+                      importService: const SimulationImportService(),
+                      deviceId: controller.installationId,
+                      deviceName: controller.deviceDisplayName!,
+                      serverUploadService: serverUploadService!,
+                      onCreate: () => Navigator.of(navContext).push<void>(
+                        MaterialPageRoute<void>(
+                          builder: (_) => PtpScreen(
+                            locationService: locationService,
+                            profileElevationProvider: profileElevationProvider,
+                            simulationRepository: simulationRepository,
+                            exportService: simulationExportService,
+                            deviceId: controller.installationId,
+                            deviceName: controller.deviceDisplayName!,
+                            serverUploadService: serverUploadService!,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                onDownload: () => Navigator.of(navContext).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) => ServerCatalogueScreen(
+                      authController: authController,
+                      controller: controller,
+                    ),
+                  ),
+                ),
+                onAdd: () => Navigator.of(navContext).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) =>
+                        AddRadioStationScreen(controller: controller),
+                  ),
+                ),
+                onSettings: () => Navigator.of(navContext).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) => _CatalogueSettingsScreen(
+                      controller: controller,
+                      authController: authController,
+                      visualThemeController: visualThemeController,
+                    ),
+                  ),
+                ),
+                onDebug: () => Navigator.of(navContext).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) => DebugToolsScreen(controller: controller),
+                  ),
+                ),
+              ),
+            ),
           );
         },
       ),
     ),
   );
 }
+
+enum CatalogueEntryAction { none, downloadServer, addBeacon }
 
 final class CatalogueScreen extends StatefulWidget {
   const CatalogueScreen({
@@ -86,9 +235,11 @@ final class CatalogueScreen extends StatefulWidget {
     required this.controller,
     required this.pointingController,
     required this.locationService,
+    this.weatherService,
     required this.profileElevationProvider,
     required this.simulationRepository,
     required this.simulationExportService,
+    this.initialAction = CatalogueEntryAction.none,
     super.key,
   });
 
@@ -97,9 +248,11 @@ final class CatalogueScreen extends StatefulWidget {
   final CatalogueController controller;
   final PointingController pointingController;
   final DeviceLocationService locationService;
+  final WeatherService? weatherService;
   final TerrainProfileElevationProvider profileElevationProvider;
   final RadioLinkSimulationRepository simulationRepository;
   final SimulationExportService simulationExportService;
+  final CatalogueEntryAction initialAction;
 
   @override
   State<CatalogueScreen> createState() => _CatalogueScreenState();
@@ -118,12 +271,33 @@ final class _CatalogueScreenState extends State<CatalogueScreen> {
   CatalogueController get controller => widget.controller;
   PointingController get pointingController => widget.pointingController;
   DeviceLocationService get locationService => widget.locationService;
+  WeatherService? get weatherService => widget.weatherService;
   TerrainProfileElevationProvider get profileElevationProvider =>
       widget.profileElevationProvider;
   RadioLinkSimulationRepository get simulationRepository =>
       widget.simulationRepository;
   SimulationExportService get simulationExportService =>
       widget.simulationExportService;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialAction != CatalogueEntryAction.none) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        switch (widget.initialAction) {
+          case CatalogueEntryAction.none:
+            break;
+          case CatalogueEntryAction.downloadServer:
+            unawaited(_downloadCatalogueFromServer(context));
+            break;
+          case CatalogueEntryAction.addBeacon:
+            unawaited(_openAddBeaconDialog(context));
+            break;
+        }
+      });
+    }
+  }
 
   static final Uri _serverCatalogueUri = Uri.parse(
     'https://gpspointer.ernet.it:9443/api/v1/catalog/export',
@@ -394,7 +568,7 @@ final class _CatalogueScreenState extends State<CatalogueScreen> {
           tooltip: 'Scarica catalogo dal server',
           onPressed: controller.busy || authController.busy
               ? null
-              : () => _downloadCatalogueFromServer(context),
+              : () => _openServerCatalogue(context),
           icon: const Icon(Icons.cloud_download_outlined),
         ),
         IconButton(
@@ -491,7 +665,7 @@ final class _CatalogueScreenState extends State<CatalogueScreen> {
                             label: 'Server',
                             onTap: controller.busy || authController.busy
                                 ? null
-                                : () => _downloadCatalogueFromServer(context),
+                                : () => _openServerCatalogue(context),
                           ),
                         ),
                         const SizedBox(width: 7),
@@ -549,12 +723,6 @@ final class _CatalogueScreenState extends State<CatalogueScreen> {
     return CustomScrollView(
       key: const PageStorageKey<String>('catalogue-scroll'),
       slivers: [
-        SliverToBoxAdapter(
-          child: SizedBox(
-            height: visualThemeController.isRadarPro ? 186 : 112,
-            child: _buildTopBar(context),
-          ),
-        ),
         SliverToBoxAdapter(child: _Messages(controller: controller)),
         SliverToBoxAdapter(
           child: Padding(
@@ -571,7 +739,7 @@ final class _CatalogueScreenState extends State<CatalogueScreen> {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          'CATALOGO RADIOFARI',
+                          'POSTAZIONI RADIO',
                           style: Theme.of(context).textTheme.titleMedium
                               ?.copyWith(
                                 color: Colors.white,
@@ -742,7 +910,9 @@ final class _CatalogueScreenState extends State<CatalogueScreen> {
             ),
             child: _BeaconCard(
               beacon: filtered[index].beacon,
+              origin: origin,
               distanceFromFilterMeters: filtered[index].distanceMeters,
+              weatherService: weatherService,
               controller: controller,
               pointingController: pointingController,
               locationService: locationService,
@@ -796,6 +966,16 @@ final class _CatalogueScreenState extends State<CatalogueScreen> {
       poleHeightMeters: draft.poleHeightMeters,
     );
   }
+
+  Future<void> _openServerCatalogue(BuildContext context) =>
+      Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => ServerCatalogueScreen(
+            authController: authController,
+            controller: controller,
+          ),
+        ),
+      );
 
   Future<void> _openSettings(BuildContext context) =>
       Navigator.of(context).push<void>(
@@ -1183,6 +1363,56 @@ final class _CatalogueSettingsScreen extends StatelessWidget {
                   listenable: visualThemeController,
                   builder: (context, _) => VisualThemeSelectorCard(
                     controller: visualThemeController,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Associazione file simulazione',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'GPS Pointer dichiara il supporto ai file .gpspsim. '
+                          'Android può comunque chiederti con quale app aprirli '
+                          'la prima volta.',
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: () async {
+                              final opened =
+                                  await AppFileAssociationSettings.openAndroidAppSettings();
+                              if (!opened && context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Impostazioni Android non disponibili.',
+                                    ),
+                                  ),
+                                );
+                              }
+                            },
+                            icon: const Icon(Icons.open_in_new),
+                            label: const Text(
+                              'APRI IMPOSTAZIONI ANDROID DELL’APP',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Per il test: apri un .gpspsim da Download e scegli '
+                          'GPS Pointer. Se Android propone “Sempre”, puoi '
+                          'impostarlo come predefinito.',
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -1830,8 +2060,152 @@ final class _FirstSetup extends StatelessWidget {
   );
 }
 
-final class _BeaconCard extends StatelessWidget {
+final class _BeaconCard extends StatefulWidget {
   const _BeaconCard({
+    required this.beacon,
+    required this.origin,
+    required this.distanceFromFilterMeters,
+    required this.weatherService,
+    required this.controller,
+    required this.pointingController,
+    required this.locationService,
+    required this.profileElevationProvider,
+    required this.simulationRepository,
+    required this.simulationExportService,
+    required this.deviceId,
+    required this.deviceName,
+  });
+
+  final RadioBeacon beacon;
+  final GeoPoint? origin;
+  final double? distanceFromFilterMeters;
+  final WeatherService? weatherService;
+  final CatalogueController controller;
+  final PointingController pointingController;
+  final DeviceLocationService locationService;
+  final TerrainProfileElevationProvider profileElevationProvider;
+  final RadioLinkSimulationRepository simulationRepository;
+  final SimulationExportService simulationExportService;
+  final String deviceId;
+  final String deviceName;
+
+  @override
+  State<_BeaconCard> createState() => _BeaconCardState();
+}
+
+final class _BeaconCardState extends State<_BeaconCard> {
+  bool _expanded = false;
+  WeatherSnapshot? _weather;
+  bool _weatherLoading = false;
+
+  @override
+  void didUpdateWidget(covariant _BeaconCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.beacon.id != widget.beacon.id ||
+        oldWidget.weatherService != widget.weatherService) {
+      _weather = null;
+      _weatherLoading = false;
+    }
+  }
+
+  Future<void> _loadWeather() async {
+    if (_weatherLoading || widget.weatherService == null) return;
+    setState(() => _weatherLoading = true);
+    try {
+      final weather = await widget.weatherService!.current(
+        widget.beacon.position,
+      );
+      if (!mounted) return;
+      setState(() => _weather = weather);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _weather = null);
+    } finally {
+      if (mounted) setState(() => _weatherLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          InkWell(
+            onTap: () {
+              final opening = !_expanded;
+              setState(() => _expanded = opening);
+              if (opening &&
+                  _weather == null &&
+                  !_weatherLoading &&
+                  widget.weatherService != null) {
+                unawaited(_loadWeather());
+              }
+            },
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 13, 10, 13),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.beacon.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        if (widget.distanceFromFilterMeters != null)
+                          Text(
+                            _BeaconDetailsCard._formatDistance(
+                              widget.distanceFromFilterMeters!,
+                            ),
+                            style: const TextStyle(
+                              color: Color(0xFFB7CBD4),
+                              fontSize: 12,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    _expanded
+                        ? Icons.keyboard_arrow_up
+                        : Icons.keyboard_arrow_down,
+                    color: const Color(0xFF79E2F3),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_expanded)
+            _BeaconDetailsCard(
+              beacon: widget.beacon,
+              distanceFromFilterMeters: widget.distanceFromFilterMeters,
+              controller: widget.controller,
+              pointingController: widget.pointingController,
+              locationService: widget.locationService,
+              profileElevationProvider: widget.profileElevationProvider,
+              simulationRepository: widget.simulationRepository,
+              simulationExportService: widget.simulationExportService,
+              deviceId: widget.deviceId,
+              deviceName: widget.deviceName,
+              weather: _weather,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+final class _BeaconDetailsCard extends StatelessWidget {
+  const _BeaconDetailsCard({
     required this.beacon,
     required this.distanceFromFilterMeters,
     required this.controller,
@@ -1842,6 +2216,7 @@ final class _BeaconCard extends StatelessWidget {
     required this.simulationExportService,
     required this.deviceId,
     required this.deviceName,
+    this.weather,
   });
 
   final RadioBeacon beacon;
@@ -1854,6 +2229,7 @@ final class _BeaconCard extends StatelessWidget {
   final SimulationExportService simulationExportService;
   final String deviceId;
   final String deviceName;
+  final WeatherSnapshot? weather;
 
   @override
   Widget build(BuildContext context) {
@@ -1875,7 +2251,31 @@ final class _BeaconCard extends StatelessWidget {
                 'Distanza dalla posizione: '
                 '${_formatDistance(distanceFromFilterMeters!)}',
               ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: controller.busy
+                        ? null
+                        : () => _shareBeaconLocation(context),
+                    icon: const Icon(Icons.ios_share_outlined),
+                    label: const Text('Condividi posizione'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: controller.busy
+                        ? null
+                        : () => _openDrivingDirections(context),
+                    icon: const Icon(Icons.directions_car_outlined),
+                    label: const Text('Indicazioni stradali'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
             Text(
               'Quota terreno: ${terrain == null ? 'mancante' : '${terrain.toStringAsFixed(1)} m'}',
             ),
@@ -1884,7 +2284,66 @@ final class _BeaconCard extends StatelessWidget {
               'Quota antenna: ${antenna == null ? 'non calcolabile' : '${antenna.toStringAsFixed(1)} m'}',
             ),
             if (beacon.elevationSource != null)
-              Text('Fonte: ${beacon.elevationSource}'),
+              Text(
+                'Fonte quota: ${_friendlyElevationSource(beacon.elevationSource!)}',
+              ),
+            if (weather != null) ...[
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0x55162D3A),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0x332BC5E8)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Meteo ora',
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      '${weather!.temperatureCelsius.toStringAsFixed(1)} °C · '
+                      '${weather!.description}',
+                    ),
+                    if (weather!.apparentTemperatureCelsius != null)
+                      Text(
+                        'Percepita ${weather!.apparentTemperatureCelsius!.toStringAsFixed(1)} °C · '
+                        'Umidità ${weather!.relativeHumidityPercent.toStringAsFixed(0)}%',
+                      )
+                    else
+                      Text(
+                        'Umidità ${weather!.relativeHumidityPercent.toStringAsFixed(0)}%',
+                      ),
+                    Text(
+                      'Vento ${weather!.windSpeedKmh.toStringAsFixed(0)} km/h · '
+                      'raffiche ${weather!.windGustKmh.toStringAsFixed(0)} km/h',
+                    ),
+                    Text(
+                      'Nuvolosità ${weather!.cloudCoverPercent.toStringAsFixed(0)}% · '
+                      'precipitazioni ${weather!.precipitationMm.toStringAsFixed(1)} mm',
+                    ),
+                    const SizedBox(height: 3),
+                    const Text(
+                      'Meteo: MET Norway',
+                      style: TextStyle(color: Color(0xFF9FB6C2), fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _openWeatherRadar(context),
+                icon: const Icon(Icons.radar_outlined),
+                label: const Text('Radar meteo su questa postazione'),
+              ),
+            ),
             if (beacon.horizontalAccuracyMeters != null)
               Text(
                 'Accuratezza GPS H: '
@@ -1987,6 +2446,61 @@ final class _BeaconCard extends StatelessWidget {
       ),
     );
   }
+
+  static String _friendlyElevationSource(String source) {
+    final normalized = source.toLowerCase();
+    if (normalized.contains('open_meteo')) return 'Open-Meteo';
+    if (normalized.contains('gps')) return 'GPS';
+    if (normalized.contains('manual')) return 'Manuale';
+    return 'Catalogo';
+  }
+
+  Future<void> _shareBeaconLocation(BuildContext context) async {
+    try {
+      await LocationShareService.share(
+        label: 'Postazione Radio • ${beacon.name}',
+        point: beacon.position,
+      );
+    } on Exception catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Condivisione posizione non riuscita: $error')),
+      );
+    }
+  }
+
+  Future<void> _openDrivingDirections(BuildContext context) async {
+    try {
+      final opened = await LocationShareService.openDrivingDirections(
+        point: beacon.position,
+      );
+      if (!opened && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Nessuna app disponibile per aprire le indicazioni stradali.',
+            ),
+          ),
+        );
+      }
+    } on Exception catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Indicazioni stradali non disponibili: $error')),
+      );
+    }
+  }
+
+  Future<void> _openWeatherRadar(BuildContext context) =>
+      Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => WeatherRadarScreen(
+            locationService: locationService,
+            initialPoint: beacon.position,
+            initialLabel: beacon.name,
+          ),
+        ),
+      );
 
   Future<void> _openAltimetry(BuildContext context) async {
     await Navigator.of(context).push<void>(
@@ -2718,8 +3232,21 @@ final class _PointingScreenState extends State<PointingScreen>
   Timer? _compassTimeout;
   double? _magneticHeading;
   double? _cameraElevation;
+  final DateTime _arDebugStarted = DateTime.now();
+  final List<String> _arDebugMarks = <String>[];
+  String? _arDebugLogPath;
   bool _showGuide = true;
   bool _showCalibrationGuide = false;
+  final PointingEngineV3Field _fieldV3 = PointingEngineV3Field();
+  StreamSubscription<GyroscopeEvent>? _fieldGyroscopeSubscription;
+  final List<_ArFieldTimedHeading> _fieldAbsoluteSamples =
+      <_ArFieldTimedHeading>[];
+  double? _fieldGravityX;
+  double? _fieldGravityY;
+  double? _fieldGravityZ;
+  double _fieldProjectedYawRateRadiansPerSecond = 0;
+  DateTime? _fieldLastGyroTime;
+  String? _fieldAnchorEvent;
 
   @override
   void initState() {
@@ -2755,6 +3282,10 @@ final class _PointingScreenState extends State<PointingScreen>
     _magneticHeading = null;
     _cameraElevation = null;
     _sensorError = null;
+    _fieldV3.reset();
+    _fieldAbsoluteSamples.clear();
+    _fieldLastGyroTime = null;
+    _fieldAnchorEvent = null;
   }
 
   void _startSensors() {
@@ -2776,6 +3307,9 @@ final class _PointingScreenState extends State<PointingScreen>
     _accelerometerSubscription = accelerometerEventStream(
       samplingPeriod: SensorInterval.uiInterval,
     ).listen(_onAccelerometer);
+    _fieldGyroscopeSubscription = gyroscopeEventStream(
+      samplingPeriod: SensorInterval.uiInterval,
+    ).listen(_onFieldGyroscope);
     _compassTimeout = Timer(const Duration(seconds: 5), () {
       if (mounted && _magneticHeading == null) {
         setState(() {
@@ -2792,8 +3326,11 @@ final class _PointingScreenState extends State<PointingScreen>
     _compassTimeout = null;
     unawaited(_compassSubscription?.cancel());
     unawaited(_accelerometerSubscription?.cancel());
+    unawaited(_fieldGyroscopeSubscription?.cancel());
     _compassSubscription = null;
     _accelerometerSubscription = null;
+    _fieldGyroscopeSubscription = null;
+    _fieldLastGyroTime = null;
   }
 
   void _onCompass(CompassEvent event) {
@@ -2801,11 +3338,29 @@ final class _PointingScreenState extends State<PointingScreen>
     if (!mounted || heading == null) return;
     _compassTimeout?.cancel();
     _magneticHeading = heading;
+    final now = DateTime.now();
+    final absoluteTrue = PointingEngineV3Field.normalize(
+      heading + widget.controller.declinationDegrees,
+    );
+    _fieldAbsoluteSamples.add(_ArFieldTimedHeading(now, absoluteTrue));
+    final cutoff = now.subtract(const Duration(seconds: 3));
+    _fieldAbsoluteSamples.removeWhere((sample) => sample.time.isBefore(cutoff));
+    _tryAutoAnchorFieldV3();
     _updateEngine();
   }
 
   void _onAccelerometer(AccelerometerEvent event) {
     if (!mounted) return;
+    const alpha = 0.90;
+    _fieldGravityX = _fieldGravityX == null
+        ? event.x
+        : alpha * _fieldGravityX! + (1 - alpha) * event.x;
+    _fieldGravityY = _fieldGravityY == null
+        ? event.y
+        : alpha * _fieldGravityY! + (1 - alpha) * event.y;
+    _fieldGravityZ = _fieldGravityZ == null
+        ? event.z
+        : alpha * _fieldGravityZ! + (1 - alpha) * event.z;
     _cameraElevation = DeviceOrientationCalculator.cameraElevationDegrees(
       x: event.x,
       y: event.y,
@@ -2814,6 +3369,95 @@ final class _PointingScreenState extends State<PointingScreen>
     if (_engineReading == null && _magneticHeading != null) {
       _updateEngine();
     }
+  }
+
+  void _onFieldGyroscope(GyroscopeEvent event) {
+    if (!mounted) return;
+    final now = DateTime.now();
+    final previous = _fieldLastGyroTime;
+    _fieldLastGyroTime = now;
+    if (previous == null) return;
+
+    final gx = _fieldGravityX;
+    final gy = _fieldGravityY;
+    final gz = _fieldGravityZ;
+    if (gx == null || gy == null || gz == null) return;
+    final gravityNorm = math.sqrt(gx * gx + gy * gy + gz * gz);
+    if (gravityNorm < 5) return;
+    final projectedRate =
+        event.x * gx / gravityNorm +
+        event.y * gy / gravityNorm +
+        event.z * gz / gravityNorm;
+    _fieldProjectedYawRateRadiansPerSecond = projectedRate;
+    final dt = now.difference(previous).inMicroseconds / 1000000.0;
+    final stableMean = _fieldStableAbsoluteMean;
+    final stationary =
+        (projectedRate * 180 / math.pi).abs() <= 3.0 &&
+        _fieldAbsoluteSpreadDegrees <= 2.5;
+    _fieldV3.update(
+      projectedYawRateRadiansPerSecond: projectedRate,
+      deltaSeconds: dt,
+      deviceStationary: stationary,
+      stableAbsoluteTrueHeadingDegrees: stationary ? stableMean : null,
+    );
+    _tryAutoAnchorFieldV3();
+    setState(() {});
+  }
+
+  double get _fieldAbsoluteSpreadDegrees {
+    final cutoff = DateTime.now().subtract(const Duration(seconds: 2));
+    final values = _fieldAbsoluteSamples
+        .where((sample) => sample.time.isAfter(cutoff))
+        .map((sample) => sample.heading)
+        .toList();
+    if (values.length < 8) return double.infinity;
+    final mean = _fieldCircularMean(values);
+    var maximum = 0.0;
+    for (final value in values) {
+      final delta = PointingEngineV3Field.signedAngle(value - mean).abs();
+      if (delta > maximum) maximum = delta;
+    }
+    return maximum;
+  }
+
+  double? get _fieldStableAbsoluteMean {
+    final cutoff = DateTime.now().subtract(const Duration(seconds: 2));
+    final values = _fieldAbsoluteSamples
+        .where((sample) => sample.time.isAfter(cutoff))
+        .map((sample) => sample.heading)
+        .toList();
+    if (values.length < 8 || _fieldAbsoluteSpreadDegrees > 2.5) return null;
+    return _fieldCircularMean(values);
+  }
+
+  double _fieldCircularMean(List<double> values) {
+    var sinSum = 0.0;
+    var cosSum = 0.0;
+    for (final value in values) {
+      final radians = value * math.pi / 180;
+      sinSum += math.sin(radians);
+      cosSum += math.cos(radians);
+    }
+    return PointingEngineV3Field.normalize(
+      math.atan2(sinSum, cosSum) * 180 / math.pi,
+    );
+  }
+
+  void _tryAutoAnchorFieldV3() {
+    if (_fieldV3.anchored) return;
+    final stableMean = _fieldStableAbsoluteMean;
+    final yawDps = _fieldProjectedYawRateRadiansPerSecond * 180 / math.pi;
+    if (stableMean == null || yawDps.abs() > 3.0) return;
+    _fieldV3.anchorAbsolute(stableMean);
+    _fieldAnchorEvent =
+        'AUTO_ANCHOR true=${stableMean.toStringAsFixed(6)} '
+        'spread=${_fieldAbsoluteSpreadDegrees.toStringAsFixed(6)}';
+  }
+
+  double? _fieldDelta(double? heading) {
+    final target = widget.controller.solution?.initialBearingDegrees;
+    if (target == null || heading == null) return null;
+    return PointingEngineV3Field.signedAngle(target - heading);
   }
 
   void _updateEngine() {
@@ -2833,6 +3477,82 @@ final class _PointingScreenState extends State<PointingScreen>
         }
       });
     }
+  }
+
+  Future<void> _markArDebug() async {
+    final reading = _engineReading;
+    final solution = widget.controller.solution;
+    if (reading == null || solution == null) return;
+
+    final now = DateTime.now().toUtc();
+    final line = [
+      'FLAG${_arDebugMarks.length + 1}',
+      'utc=${now.toIso8601String()}',
+      'beacon=${widget.beacon.name}',
+      'target_true_deg=${solution.initialBearingDegrees.toStringAsFixed(6)}',
+      'target_elev_deg=${solution.elevationAngleDegrees.toStringAsFixed(6)}',
+      'declination_deg=${widget.controller.declinationDegrees.toStringAsFixed(6)}',
+      'magnetic_heading_deg=${reading.magneticHeadingDegrees.toStringAsFixed(6)}',
+      'true_heading_deg=${reading.trueHeadingDegrees.toStringAsFixed(6)}',
+      'horizontal_delta_deg=${reading.horizontalDeltaDegrees.toStringAsFixed(6)}',
+      'camera_elevation_deg=${reading.cameraElevationDegrees.toStringAsFixed(6)}',
+      'vertical_delta_deg=${reading.verticalDeltaDegrees.toStringAsFixed(6)}',
+      'state=${reading.state.name}',
+      'warmup=${reading.warmupProgress.toStringAsFixed(3)}',
+      'centered=${reading.centered}',
+      'v3_anchored=${_fieldV3.anchored}',
+      'v3_anchor=${_fieldAnchorEvent ?? ''}',
+      'v3_gyro_heading_deg=${_fieldV3.snapshot.gyroHeadingDegrees?.toStringAsFixed(6) ?? ''}',
+      'v3_gyro_delta_deg=${_fieldDelta(_fieldV3.snapshot.gyroHeadingDegrees)?.toStringAsFixed(6) ?? ''}',
+      'v3_fusion_heading_deg=${_fieldV3.snapshot.guardedFusionHeadingDegrees?.toStringAsFixed(6) ?? ''}',
+      'v3_fusion_delta_deg=${_fieldDelta(_fieldV3.snapshot.guardedFusionHeadingDegrees)?.toStringAsFixed(6) ?? ''}',
+      'absolute_spread_deg=${_fieldAbsoluteSpreadDegrees.isFinite ? _fieldAbsoluteSpreadDegrees.toStringAsFixed(6) : ''}',
+      'projected_yaw_rate_dps=${(_fieldProjectedYawRateRadiansPerSecond * 180 / math.pi).toStringAsFixed(6)}',
+      'camera_orientation=portrait',
+    ].join(' | ');
+
+    _arDebugMarks.add(line);
+    final content = <String>[
+      'GPS POINTER • AR DEBUG',
+      'engine=PointingEngineV2 unchanged + PointingEngineV3Field parallel',
+      'session_started=${_arDebugStarted.toUtc().toIso8601String()}',
+      'beacon=${widget.beacon.name}',
+      'marks=${_arDebugMarks.length}',
+      '',
+      ..._arDebugMarks,
+    ].join('\n');
+
+    final file = await DiagnosticLogStore.writeText(
+      category: 'AR',
+      subject: widget.beacon.name,
+      content: content,
+      timestamp: _arDebugStarted,
+    );
+    _arDebugLogPath = file.path;
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('TARGET REALE AR ${_arDebugMarks.length} salvato.'),
+      ),
+    );
+  }
+
+  Future<void> _shareArDebug() async {
+    final path = _arDebugLogPath;
+    if (path == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Crea prima almeno una FLAG AR.')),
+        );
+      }
+      return;
+    }
+    await SharePlus.instance.share(
+      ShareParams(
+        files: [XFile(path)],
+        subject: 'GPS Pointer AR debug ${widget.beacon.name}',
+      ),
+    );
   }
 
   Future<void> _refreshPosition() async {
@@ -2944,6 +3664,19 @@ final class _PointingScreenState extends State<PointingScreen>
         title: Text('AR • ${widget.beacon.name}'),
         actions: [
           IconButton(
+            onPressed:
+                widget.controller.busy || _showGuide || _engineReading == null
+                ? null
+                : _markArDebug,
+            tooltip: 'TARGET REALE QUI • salva confronto V2/V3',
+            icon: const Icon(Icons.flag_outlined),
+          ),
+          IconButton(
+            onPressed: _arDebugLogPath == null ? null : _shareArDebug,
+            tooltip: 'Esporta debug AR',
+            icon: const Icon(Icons.ios_share_outlined),
+          ),
+          IconButton(
             onPressed: widget.controller.busy
                 ? null
                 : () {
@@ -3007,13 +3740,47 @@ final class _PointingScreenState extends State<PointingScreen>
         children: [
           Center(child: CameraPreview(camera)),
           const _CenterReticle(),
-          if (ready)
+          if (ready) ...[
             _TargetOverlay(
               viewportSize: constraints.biggest,
               horizontalDeltaDegrees: reading!.horizontalDeltaDegrees,
               verticalDeltaDegrees: reading.verticalDeltaDegrees,
               centered: reading.centered,
+              color: const Color(0xFF29C7E8),
+              label: 'V2',
             ),
+            if (_fieldDelta(_fieldV3.snapshot.gyroHeadingDegrees) != null)
+              _TargetOverlay(
+                viewportSize: constraints.biggest,
+                horizontalDeltaDegrees: _fieldDelta(
+                  _fieldV3.snapshot.gyroHeadingDegrees,
+                )!,
+                verticalDeltaDegrees: reading.verticalDeltaDegrees,
+                centered:
+                    _fieldDelta(_fieldV3.snapshot.gyroHeadingDegrees)!.abs() <=
+                        2 &&
+                    reading.verticalDeltaDegrees.abs() <= 1,
+                color: const Color(0xFF63D98A),
+                label: 'G',
+              ),
+            if (_fieldDelta(_fieldV3.snapshot.guardedFusionHeadingDegrees) !=
+                null)
+              _TargetOverlay(
+                viewportSize: constraints.biggest,
+                horizontalDeltaDegrees: _fieldDelta(
+                  _fieldV3.snapshot.guardedFusionHeadingDegrees,
+                )!,
+                verticalDeltaDegrees: reading.verticalDeltaDegrees,
+                centered:
+                    _fieldDelta(
+                          _fieldV3.snapshot.guardedFusionHeadingDegrees,
+                        )!.abs() <=
+                        2 &&
+                    reading.verticalDeltaDegrees.abs() <= 1,
+                color: const Color(0xFFFFB454),
+                label: 'F',
+              ),
+          ],
           Positioned(
             left: 12,
             right: 12,
@@ -3024,6 +3791,11 @@ final class _PointingScreenState extends State<PointingScreen>
               sensorError: _sensorError,
               controller: widget.controller,
               solution: solution,
+              v3Anchored: _fieldV3.anchored,
+              v3GyroDelta: _fieldDelta(_fieldV3.snapshot.gyroHeadingDegrees),
+              v3FusionDelta: _fieldDelta(
+                _fieldV3.snapshot.guardedFusionHeadingDegrees,
+              ),
             ),
           ),
           Positioned(
@@ -3154,12 +3926,16 @@ final class _TargetOverlay extends StatelessWidget {
     required this.horizontalDeltaDegrees,
     required this.verticalDeltaDegrees,
     required this.centered,
+    required this.color,
+    required this.label,
   });
 
   final Size viewportSize;
   final double horizontalDeltaDegrees;
   final double verticalDeltaDegrees;
   final bool centered;
+  final Color color;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
@@ -3173,8 +3949,8 @@ final class _TargetOverlay extends StatelessWidget {
         child: Container(
           margin: const EdgeInsets.all(12),
           padding: const EdgeInsets.all(10),
-          decoration: const BoxDecoration(
-            color: Color(0xDDC47A23),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.88),
             shape: BoxShape.circle,
           ),
           child: Icon(
@@ -3196,8 +3972,8 @@ final class _TargetOverlay extends StatelessWidget {
         child: Container(
           margin: const EdgeInsets.symmetric(vertical: 110),
           padding: const EdgeInsets.all(10),
-          decoration: const BoxDecoration(
-            color: Color(0xDDC47A23),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.88),
             shape: BoxShape.circle,
           ),
           child: Icon(
@@ -3219,13 +3995,41 @@ final class _TargetOverlay extends StatelessWidget {
     return Positioned(
       left: x - 25,
       top: y - 25,
-      child: _Crosshair(
-        color: centered ? const Color(0xFF45E07A) : const Color(0xFF29C7E8),
-        size: 50,
-        stroke: 3,
+      child: Stack(
+        alignment: Alignment.center,
+        clipBehavior: Clip.none,
+        children: [
+          _Crosshair(
+            color: centered ? const Color(0xFF45E07A) : color,
+            size: 50,
+            stroke: 3,
+          ),
+          Positioned(
+            top: -20,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+              color: Colors.black87,
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 11,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
+}
+
+final class _ArFieldTimedHeading {
+  const _ArFieldTimedHeading(this.time, this.heading);
+
+  final DateTime time;
+  final double heading;
 }
 
 final class _ArStatus extends StatelessWidget {
@@ -3235,6 +4039,9 @@ final class _ArStatus extends StatelessWidget {
     required this.sensorError,
     required this.controller,
     required this.solution,
+    required this.v3Anchored,
+    required this.v3GyroDelta,
+    required this.v3FusionDelta,
   });
 
   final String beaconName;
@@ -3242,6 +4049,9 @@ final class _ArStatus extends StatelessWidget {
   final String? sensorError;
   final PointingController controller;
   final PointingCalculation solution;
+  final bool v3Anchored;
+  final double? v3GyroDelta;
+  final double? v3FusionDelta;
 
   @override
   Widget build(BuildContext context) => _GlassPanel(
@@ -3338,7 +4148,11 @@ final class _ArStatus extends StatelessWidget {
         'geo filtr. ${value.trueHeadingDegrees.toStringAsFixed(1)}°\n'
         'Camera ${value.cameraElevationDegrees.toStringAsFixed(1)}° • '
         'delta H ${value.horizontalDeltaDegrees.toStringAsFixed(1)}° • '
-        'sensori ${_sensorState(value.state)}';
+        'sensori ${_sensorState(value.state)}\n'
+        'V2 Δ ${value.horizontalDeltaDegrees.toStringAsFixed(1)}° • '
+        'G ${v3GyroDelta?.toStringAsFixed(1) ?? '—'}° • '
+        'F ${v3FusionDelta?.toStringAsFixed(1) ?? '—'}° • '
+        '${v3Anchored ? 'V3 ANCORATO' : 'V3 IN ATTESA'}';
   }
 
   static String _sensorState(PointingEngineState state) => switch (state) {
@@ -3365,7 +4179,7 @@ final class _ArDetails extends StatelessWidget {
       ' = quota osservatore ${controller.observerElevationMeters!.toStringAsFixed(1)} m\n'
       'Posizione bloccata: ${controller.positionSamplesUsed} campioni • '
       'GPS ±${controller.location!.horizontalAccuracyMeters.toStringAsFixed(1)} m\n'
-      'AR V2: nord geografico e filtro adattivo.',
+      'AR CAMPO: V2 blu • V3 Gyro verde • V3 Fusion arancio.',
       textAlign: TextAlign.center,
       style: const TextStyle(color: Colors.white),
     ),

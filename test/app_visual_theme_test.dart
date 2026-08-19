@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gps_pointer/application/app_visual_theme.dart';
 
 void main() {
-  test('visual theme defaults to classic and persists Radar Pro', () async {
+  test('visual theme defaults to Pro and persists user selection', () async {
     final directory = await Directory.systemTemp.createTemp('gpsp-theme-test-');
     addTearDown(() => directory.delete(recursive: true));
 
@@ -16,22 +16,22 @@ void main() {
     );
 
     await controller.initialize();
-    expect(controller.theme, AppVisualTheme.classic);
-
-    await controller.setTheme(AppVisualTheme.radarPro);
     expect(controller.theme, AppVisualTheme.radarPro);
-    expect(await file.readAsString(), 'radarPro');
-    expect(bridge.lastTheme, AppVisualTheme.radarPro);
+
+    await controller.setTheme(AppVisualTheme.classic);
+    expect(controller.theme, AppVisualTheme.classic);
+    expect(await file.readAsString(), 'classic');
+    expect(bridge.lastTheme, AppVisualTheme.classic);
 
     final reloaded = AppVisualThemeController(
       storageFile: file,
       launcherIconBridge: bridge,
     );
     await reloaded.initialize();
-    expect(reloaded.theme, AppVisualTheme.radarPro);
+    expect(reloaded.theme, AppVisualTheme.classic);
   });
 
-  test('unknown persisted theme safely falls back to classic', () async {
+  test('unknown persisted theme safely falls back to Pro', () async {
     final directory = await Directory.systemTemp.createTemp('gpsp-theme-test-');
     addTearDown(() => directory.delete(recursive: true));
 
@@ -44,7 +44,7 @@ void main() {
     );
     await controller.initialize();
 
-    expect(controller.theme, AppVisualTheme.classic);
+    expect(controller.theme, AppVisualTheme.radarPro);
   });
 }
 
