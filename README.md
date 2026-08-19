@@ -59,7 +59,7 @@ Sono disponibili:
 
 ## Azimut, AR e Tilt
 
-GPS Pointer integra strumenti dedicati al puntamento sul campo:
+GPS Pointer include strumenti sperimentali dedicati al puntamento sul campo:
 
 - bussola verso il target;
 - correzione rispetto al Nord vero;
@@ -67,7 +67,13 @@ GPS Pointer integra strumenti dedicati al puntamento sul campo:
 - strumenti diagnostici;
 - calcolo inclinazione antenna.
 
-Il motore di puntamento utilizzato sul campo è stato validato tramite prove reali.
+Le funzioni **Azimut e AR sono sperimentali e ancora in fase di sviluppo e validazione sul campo**.
+
+Non devono essere considerate strumenti certificati, definitivi o sostitutivi della strumentazione professionale di puntamento.
+
+Il loro comportamento può essere modificato nelle versioni successive sulla base dei test effettuati su dispositivi reali.
+
+La funzione Tilt è uno strumento di supporto al calcolo dell’inclinazione e deve anch’essa essere utilizzata come ausilio tecnico.
 
 ## Meteo
 
