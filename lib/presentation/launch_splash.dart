@@ -120,15 +120,19 @@ final class _RadarProSplash extends StatelessWidget {
       fit: StackFit.expand,
       children: [
         Positioned.fill(
-          left: -4,
-          right: -4,
-          top: -2,
-          bottom: -2,
-          child: Image.asset(
-            'asset/pro_splash_background.png',
-            fit: BoxFit.cover,
-            alignment: Alignment.center,
-            filterQuality: FilterQuality.high,
+          top: -6,
+          bottom: -6,
+          child: ClipRect(
+            child: Transform(
+              alignment: Alignment.centerRight,
+              transform: Matrix4.diagonal3Values(1.065, 1, 1),
+              child: Image.asset(
+                'asset/pro_splash_background.png',
+                fit: BoxFit.cover,
+                alignment: Alignment.center,
+                filterQuality: FilterQuality.high,
+              ),
+            ),
           ),
         ),
         const DecoratedBox(

@@ -22,7 +22,9 @@ import '../application/simulation_export_service.dart';
 import '../application/simulation_import_service.dart';
 import '../application/simulation_pdf_service.dart';
 import '../application/intervention_report_pdf_service.dart';
+import '../application/location_share_service.dart';
 import '../application/server_upload_services.dart';
+import '../application/weather_service.dart';
 import '../core/core.dart';
 import '../core/intervention_report.dart';
 import '../core/geo/pointing_engine_v3_field.dart';
@@ -38,6 +40,8 @@ import 'add_radio_station_screen.dart';
 import 'altimetry_screen.dart';
 import 'simulations_screen.dart';
 import 'intervention_reports_screen.dart';
+import 'server_catalogue_screen.dart';
+import 'weather_radar_screen.dart';
 
 final GlobalKey<NavigatorState> gpsPointerNavigatorKey =
     GlobalKey<NavigatorState>();
@@ -49,6 +53,7 @@ final class GpsPointerApp extends StatelessWidget {
     required this.controller,
     required this.pointingController,
     required this.locationService,
+    this.weatherService,
     required this.profileElevationProvider,
     required this.simulationRepository,
     required this.simulationExportService,
@@ -63,6 +68,7 @@ final class GpsPointerApp extends StatelessWidget {
   final CatalogueController controller;
   final PointingController pointingController;
   final DeviceLocationService locationService;
+  final WeatherService? weatherService;
   final TerrainProfileElevationProvider profileElevationProvider;
   final RadioLinkSimulationRepository simulationRepository;
   final SimulationExportService simulationExportService;
@@ -88,6 +94,7 @@ final class GpsPointerApp extends StatelessWidget {
             controller: controller,
             pointingController: pointingController,
             locationService: locationService,
+            weatherService: weatherService,
             profileElevationProvider: profileElevationProvider,
             simulationRepository: simulationRepository,
             simulationExportService: simulationExportService,
@@ -101,6 +108,8 @@ final class GpsPointerApp extends StatelessWidget {
             child: Builder(
               builder: (navContext) => MainHubScreen(
                 visualThemeController: visualThemeController,
+                locationService: locationService,
+                weatherService: weatherService,
                 onPostazioni: () => Navigator.of(navContext).push<void>(
                   MaterialPageRoute<void>(builder: (_) => catalogueScreen),
                 ),
@@ -147,6 +156,12 @@ final class GpsPointerApp extends StatelessWidget {
                     ),
                   ),
                 ),
+                onWeatherRadar: () => Navigator.of(navContext).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) =>
+                        WeatherRadarScreen(locationService: locationService),
+                  ),
+                ),
                 onPtp: () => Navigator.of(navContext).push<void>(
                   MaterialPageRoute<void>(
                     builder: (_) => SimulationLibraryScreen(
@@ -176,16 +191,9 @@ final class GpsPointerApp extends StatelessWidget {
                 ),
                 onDownload: () => Navigator.of(navContext).push<void>(
                   MaterialPageRoute<void>(
-                    builder: (_) => CatalogueScreen(
+                    builder: (_) => ServerCatalogueScreen(
                       authController: authController,
-                      visualThemeController: visualThemeController,
                       controller: controller,
-                      pointingController: pointingController,
-                      locationService: locationService,
-                      profileElevationProvider: profileElevationProvider,
-                      simulationRepository: simulationRepository,
-                      simulationExportService: simulationExportService,
-                      initialAction: CatalogueEntryAction.downloadServer,
                     ),
                   ),
                 ),
@@ -227,6 +235,7 @@ final class CatalogueScreen extends StatefulWidget {
     required this.controller,
     required this.pointingController,
     required this.locationService,
+    this.weatherService,
     required this.profileElevationProvider,
     required this.simulationRepository,
     required this.simulationExportService,
@@ -239,6 +248,7 @@ final class CatalogueScreen extends StatefulWidget {
   final CatalogueController controller;
   final PointingController pointingController;
   final DeviceLocationService locationService;
+  final WeatherService? weatherService;
   final TerrainProfileElevationProvider profileElevationProvider;
   final RadioLinkSimulationRepository simulationRepository;
   final SimulationExportService simulationExportService;
@@ -261,6 +271,7 @@ final class _CatalogueScreenState extends State<CatalogueScreen> {
   CatalogueController get controller => widget.controller;
   PointingController get pointingController => widget.pointingController;
   DeviceLocationService get locationService => widget.locationService;
+  WeatherService? get weatherService => widget.weatherService;
   TerrainProfileElevationProvider get profileElevationProvider =>
       widget.profileElevationProvider;
   RadioLinkSimulationRepository get simulationRepository =>
@@ -557,7 +568,7 @@ final class _CatalogueScreenState extends State<CatalogueScreen> {
           tooltip: 'Scarica catalogo dal server',
           onPressed: controller.busy || authController.busy
               ? null
-              : () => _downloadCatalogueFromServer(context),
+              : () => _openServerCatalogue(context),
           icon: const Icon(Icons.cloud_download_outlined),
         ),
         IconButton(
@@ -654,7 +665,7 @@ final class _CatalogueScreenState extends State<CatalogueScreen> {
                             label: 'Server',
                             onTap: controller.busy || authController.busy
                                 ? null
-                                : () => _downloadCatalogueFromServer(context),
+                                : () => _openServerCatalogue(context),
                           ),
                         ),
                         const SizedBox(width: 7),
@@ -899,7 +910,9 @@ final class _CatalogueScreenState extends State<CatalogueScreen> {
             ),
             child: _BeaconCard(
               beacon: filtered[index].beacon,
+              origin: origin,
               distanceFromFilterMeters: filtered[index].distanceMeters,
+              weatherService: weatherService,
               controller: controller,
               pointingController: pointingController,
               locationService: locationService,
@@ -953,6 +966,16 @@ final class _CatalogueScreenState extends State<CatalogueScreen> {
       poleHeightMeters: draft.poleHeightMeters,
     );
   }
+
+  Future<void> _openServerCatalogue(BuildContext context) =>
+      Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => ServerCatalogueScreen(
+            authController: authController,
+            controller: controller,
+          ),
+        ),
+      );
 
   Future<void> _openSettings(BuildContext context) =>
       Navigator.of(context).push<void>(
@@ -2037,8 +2060,152 @@ final class _FirstSetup extends StatelessWidget {
   );
 }
 
-final class _BeaconCard extends StatelessWidget {
+final class _BeaconCard extends StatefulWidget {
   const _BeaconCard({
+    required this.beacon,
+    required this.origin,
+    required this.distanceFromFilterMeters,
+    required this.weatherService,
+    required this.controller,
+    required this.pointingController,
+    required this.locationService,
+    required this.profileElevationProvider,
+    required this.simulationRepository,
+    required this.simulationExportService,
+    required this.deviceId,
+    required this.deviceName,
+  });
+
+  final RadioBeacon beacon;
+  final GeoPoint? origin;
+  final double? distanceFromFilterMeters;
+  final WeatherService? weatherService;
+  final CatalogueController controller;
+  final PointingController pointingController;
+  final DeviceLocationService locationService;
+  final TerrainProfileElevationProvider profileElevationProvider;
+  final RadioLinkSimulationRepository simulationRepository;
+  final SimulationExportService simulationExportService;
+  final String deviceId;
+  final String deviceName;
+
+  @override
+  State<_BeaconCard> createState() => _BeaconCardState();
+}
+
+final class _BeaconCardState extends State<_BeaconCard> {
+  bool _expanded = false;
+  WeatherSnapshot? _weather;
+  bool _weatherLoading = false;
+
+  @override
+  void didUpdateWidget(covariant _BeaconCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.beacon.id != widget.beacon.id ||
+        oldWidget.weatherService != widget.weatherService) {
+      _weather = null;
+      _weatherLoading = false;
+    }
+  }
+
+  Future<void> _loadWeather() async {
+    if (_weatherLoading || widget.weatherService == null) return;
+    setState(() => _weatherLoading = true);
+    try {
+      final weather = await widget.weatherService!.current(
+        widget.beacon.position,
+      );
+      if (!mounted) return;
+      setState(() => _weather = weather);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _weather = null);
+    } finally {
+      if (mounted) setState(() => _weatherLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          InkWell(
+            onTap: () {
+              final opening = !_expanded;
+              setState(() => _expanded = opening);
+              if (opening &&
+                  _weather == null &&
+                  !_weatherLoading &&
+                  widget.weatherService != null) {
+                unawaited(_loadWeather());
+              }
+            },
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 13, 10, 13),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.beacon.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        if (widget.distanceFromFilterMeters != null)
+                          Text(
+                            _BeaconDetailsCard._formatDistance(
+                              widget.distanceFromFilterMeters!,
+                            ),
+                            style: const TextStyle(
+                              color: Color(0xFFB7CBD4),
+                              fontSize: 12,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    _expanded
+                        ? Icons.keyboard_arrow_up
+                        : Icons.keyboard_arrow_down,
+                    color: const Color(0xFF79E2F3),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_expanded)
+            _BeaconDetailsCard(
+              beacon: widget.beacon,
+              distanceFromFilterMeters: widget.distanceFromFilterMeters,
+              controller: widget.controller,
+              pointingController: widget.pointingController,
+              locationService: widget.locationService,
+              profileElevationProvider: widget.profileElevationProvider,
+              simulationRepository: widget.simulationRepository,
+              simulationExportService: widget.simulationExportService,
+              deviceId: widget.deviceId,
+              deviceName: widget.deviceName,
+              weather: _weather,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+final class _BeaconDetailsCard extends StatelessWidget {
+  const _BeaconDetailsCard({
     required this.beacon,
     required this.distanceFromFilterMeters,
     required this.controller,
@@ -2049,6 +2216,7 @@ final class _BeaconCard extends StatelessWidget {
     required this.simulationExportService,
     required this.deviceId,
     required this.deviceName,
+    this.weather,
   });
 
   final RadioBeacon beacon;
@@ -2061,6 +2229,7 @@ final class _BeaconCard extends StatelessWidget {
   final SimulationExportService simulationExportService;
   final String deviceId;
   final String deviceName;
+  final WeatherSnapshot? weather;
 
   @override
   Widget build(BuildContext context) {
@@ -2082,7 +2251,31 @@ final class _BeaconCard extends StatelessWidget {
                 'Distanza dalla posizione: '
                 '${_formatDistance(distanceFromFilterMeters!)}',
               ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: controller.busy
+                        ? null
+                        : () => _shareBeaconLocation(context),
+                    icon: const Icon(Icons.ios_share_outlined),
+                    label: const Text('Condividi posizione'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: controller.busy
+                        ? null
+                        : () => _openDrivingDirections(context),
+                    icon: const Icon(Icons.directions_car_outlined),
+                    label: const Text('Indicazioni stradali'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
             Text(
               'Quota terreno: ${terrain == null ? 'mancante' : '${terrain.toStringAsFixed(1)} m'}',
             ),
@@ -2091,7 +2284,66 @@ final class _BeaconCard extends StatelessWidget {
               'Quota antenna: ${antenna == null ? 'non calcolabile' : '${antenna.toStringAsFixed(1)} m'}',
             ),
             if (beacon.elevationSource != null)
-              Text('Fonte: ${beacon.elevationSource}'),
+              Text(
+                'Fonte quota: ${_friendlyElevationSource(beacon.elevationSource!)}',
+              ),
+            if (weather != null) ...[
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0x55162D3A),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0x332BC5E8)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Meteo ora',
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      '${weather!.temperatureCelsius.toStringAsFixed(1)} °C · '
+                      '${weather!.description}',
+                    ),
+                    if (weather!.apparentTemperatureCelsius != null)
+                      Text(
+                        'Percepita ${weather!.apparentTemperatureCelsius!.toStringAsFixed(1)} °C · '
+                        'Umidità ${weather!.relativeHumidityPercent.toStringAsFixed(0)}%',
+                      )
+                    else
+                      Text(
+                        'Umidità ${weather!.relativeHumidityPercent.toStringAsFixed(0)}%',
+                      ),
+                    Text(
+                      'Vento ${weather!.windSpeedKmh.toStringAsFixed(0)} km/h · '
+                      'raffiche ${weather!.windGustKmh.toStringAsFixed(0)} km/h',
+                    ),
+                    Text(
+                      'Nuvolosità ${weather!.cloudCoverPercent.toStringAsFixed(0)}% · '
+                      'precipitazioni ${weather!.precipitationMm.toStringAsFixed(1)} mm',
+                    ),
+                    const SizedBox(height: 3),
+                    const Text(
+                      'Meteo: MET Norway',
+                      style: TextStyle(color: Color(0xFF9FB6C2), fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _openWeatherRadar(context),
+                icon: const Icon(Icons.radar_outlined),
+                label: const Text('Radar meteo su questa postazione'),
+              ),
+            ),
             if (beacon.horizontalAccuracyMeters != null)
               Text(
                 'Accuratezza GPS H: '
@@ -2194,6 +2446,61 @@ final class _BeaconCard extends StatelessWidget {
       ),
     );
   }
+
+  static String _friendlyElevationSource(String source) {
+    final normalized = source.toLowerCase();
+    if (normalized.contains('open_meteo')) return 'Open-Meteo';
+    if (normalized.contains('gps')) return 'GPS';
+    if (normalized.contains('manual')) return 'Manuale';
+    return 'Catalogo';
+  }
+
+  Future<void> _shareBeaconLocation(BuildContext context) async {
+    try {
+      await LocationShareService.share(
+        label: 'Postazione Radio • ${beacon.name}',
+        point: beacon.position,
+      );
+    } on Exception catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Condivisione posizione non riuscita: $error')),
+      );
+    }
+  }
+
+  Future<void> _openDrivingDirections(BuildContext context) async {
+    try {
+      final opened = await LocationShareService.openDrivingDirections(
+        point: beacon.position,
+      );
+      if (!opened && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Nessuna app disponibile per aprire le indicazioni stradali.',
+            ),
+          ),
+        );
+      }
+    } on Exception catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Indicazioni stradali non disponibili: $error')),
+      );
+    }
+  }
+
+  Future<void> _openWeatherRadar(BuildContext context) =>
+      Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => WeatherRadarScreen(
+            locationService: locationService,
+            initialPoint: beacon.position,
+            initialLabel: beacon.name,
+          ),
+        ),
+      );
 
   Future<void> _openAltimetry(BuildContext context) async {
     await Navigator.of(context).push<void>(

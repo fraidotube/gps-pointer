@@ -10,21 +10,23 @@ enum AppVisualTheme {
   String get storageValue => name;
 
   String get label => switch (this) {
-    AppVisualTheme.classic => 'Classico',
-    AppVisualTheme.radarPro => 'Radar Pro',
+    AppVisualTheme.classic => 'Semplice',
+    AppVisualTheme.radarPro => 'Pro',
   };
 
   String get description => switch (this) {
     AppVisualTheme.classic =>
-      'Tema storico GPS Pointer con Fry, sobrio e operativo.',
+      'Interfaccia essenziale, pulita e leggera. Tutte le funzioni operative '
+          'restano disponibili con una grafica lineare.',
     AppVisualTheme.radarPro =>
-      'Interfaccia completamente Radar Pro: niente Fry, navy, cyan, ambra e pannelli strumentali.',
+      'Interfaccia completa con grafica tecnica, meteo e strumenti avanzati. '
+          'Tema consigliato.',
   };
 
   static AppVisualTheme fromStorage(String? value) =>
       AppVisualTheme.values.firstWhere(
         (item) => item.storageValue == value?.trim(),
-        orElse: () => AppVisualTheme.classic,
+        orElse: () => AppVisualTheme.radarPro,
       );
 }
 
@@ -59,7 +61,7 @@ final class AppVisualThemeController extends ChangeNotifier {
   AppVisualThemeController({
     required this._storageFile,
     this._launcherIconBridge = const AndroidLauncherIconBridge(),
-    AppVisualTheme initialTheme = AppVisualTheme.classic,
+    AppVisualTheme initialTheme = AppVisualTheme.radarPro,
   }) : _theme = initialTheme;
 
   final File _storageFile;
@@ -77,7 +79,7 @@ final class AppVisualThemeController extends ChangeNotifier {
         _theme = AppVisualTheme.fromStorage(await _storageFile.readAsString());
       }
     } on FileSystemException {
-      _theme = AppVisualTheme.classic;
+      _theme = AppVisualTheme.radarPro;
     }
     notifyListeners();
   }

@@ -14,6 +14,7 @@ import 'application/simulation_export_service.dart';
 import 'application/incoming_simulation_bridge.dart';
 import 'application/intervention_report_pdf_service.dart';
 import 'application/server_upload_services.dart';
+import 'application/weather_service.dart';
 import 'application/simulation_exchange_codec.dart';
 import 'core/core.dart';
 import 'infrastructure/android_device_orientation_service.dart';
@@ -56,6 +57,7 @@ Future<void> main() async {
   );
   final httpClient = http.Client();
   final locationService = GeolocatorDeviceLocationService();
+  final weatherService = OpenMeteoWeatherService(httpClient);
   final elevationProvider = OpenMeteoElevationProvider(httpClient);
   final profileElevationProvider = OpenMeteoProfileElevationProvider(
     httpClient,
@@ -96,6 +98,7 @@ Future<void> main() async {
         visualThemeController: visualThemeController,
         controller: controller,
         locationService: locationService,
+        weatherService: weatherService,
         profileElevationProvider: profileElevationProvider,
         simulationRepository: simulationRepository,
         simulationExportService: ShareSimulationExportService(),

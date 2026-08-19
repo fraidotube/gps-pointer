@@ -3,6 +3,9 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../application/app_visual_theme.dart';
+import '../application/device_location_service.dart';
+import '../application/weather_service.dart';
+import 'home_weather_strip.dart';
 
 final class MainHubScreen extends StatelessWidget {
   const MainHubScreen({
@@ -15,6 +18,9 @@ final class MainHubScreen extends StatelessWidget {
     required this.onAdd,
     required this.onSettings,
     required this.onDebug,
+    required this.onWeatherRadar,
+    this.locationService,
+    this.weatherService,
     super.key,
   });
 
@@ -27,6 +33,9 @@ final class MainHubScreen extends StatelessWidget {
   final VoidCallback onAdd;
   final VoidCallback onSettings;
   final VoidCallback onDebug;
+  final VoidCallback onWeatherRadar;
+  final DeviceLocationService? locationService;
+  final WeatherService? weatherService;
 
   @override
   Widget build(BuildContext context) => visualThemeController.isRadarPro
@@ -39,6 +48,9 @@ final class MainHubScreen extends StatelessWidget {
           onAdd: onAdd,
           onSettings: onSettings,
           onDebug: onDebug,
+          onWeatherRadar: onWeatherRadar,
+          locationService: locationService,
+          weatherService: weatherService,
         )
       : _ClassicHome(
           onPostazioni: onPostazioni,
@@ -49,6 +61,9 @@ final class MainHubScreen extends StatelessWidget {
           onAdd: onAdd,
           onSettings: onSettings,
           onDebug: onDebug,
+          onWeatherRadar: onWeatherRadar,
+          locationService: locationService,
+          weatherService: weatherService,
         );
 }
 
@@ -62,6 +77,9 @@ final class _RadarProHome extends StatelessWidget {
     required this.onAdd,
     required this.onSettings,
     required this.onDebug,
+    required this.onWeatherRadar,
+    required this.locationService,
+    required this.weatherService,
   });
 
   final VoidCallback onPostazioni;
@@ -72,6 +90,9 @@ final class _RadarProHome extends StatelessWidget {
   final VoidCallback onAdd;
   final VoidCallback onSettings;
   final VoidCallback onDebug;
+  final VoidCallback onWeatherRadar;
+  final DeviceLocationService? locationService;
+  final WeatherService? weatherService;
 
   @override
   Widget build(BuildContext context) {
@@ -91,7 +112,14 @@ final class _RadarProHome extends StatelessWidget {
               child: Column(
                 children: [
                   _RadarHeader(onMenu: () => _showQuickMenu(context)),
-                  SizedBox(height: compact ? 14 : 20),
+                  if (locationService != null && weatherService != null) ...[
+                    const SizedBox(height: 8),
+                    HomeWeatherStrip(
+                      locationService: locationService!,
+                      weatherService: weatherService!,
+                    ),
+                  ],
+                  SizedBox(height: compact ? 10 : 14),
                   Expanded(
                     child: SingleChildScrollView(
                       physics: const BouncingScrollPhysics(),
@@ -144,6 +172,8 @@ final class _RadarProHome extends StatelessWidget {
                             ],
                           ),
                           SizedBox(height: gap),
+                          _RadarWeatherTile(onTap: onWeatherRadar),
+                          SizedBox(height: gap),
                           _RadarReportsTile(onTap: onRapporti),
                           SizedBox(height: gap),
                           _RadarSettingsTile(onTap: onSettings),
@@ -165,49 +195,124 @@ final class _RadarProHome extends StatelessWidget {
       showModalBottomSheet<void>(
         context: context,
         showDragHandle: true,
-        builder: (context) => SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.cell_tower),
-                  title: const Text('Postazioni Radio'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    onPostazioni();
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.assignment_outlined),
-                  title: const Text('Rapporto d’intervento'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    onRapporti();
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.settings_outlined),
-                  title: const Text('Impostazioni'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    onSettings();
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.bug_report_outlined),
-                  title: const Text('Debug'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    onDebug();
-                  },
-                ),
-              ],
+        isScrollControlled: true,
+        builder: (sheetContext) => SafeArea(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(sheetContext).height * .82,
+            ),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _menuItem(
+                    sheetContext,
+                    icon: Icons.cell_tower,
+                    title: 'Postazioni Radio',
+                    action: onPostazioni,
+                  ),
+                  _menuItem(
+                    sheetContext,
+                    icon: Icons.radar,
+                    title: 'Copertura',
+                    action: onCopertura,
+                  ),
+                  _menuItem(
+                    sheetContext,
+                    icon: Icons.swap_horiz_rounded,
+                    title: 'Punto Punto',
+                    action: onPtp,
+                  ),
+                  _menuItem(
+                    sheetContext,
+                    icon: Icons.cloud_download_outlined,
+                    title: 'Scarica dal server',
+                    action: onDownload,
+                  ),
+                  _menuItem(
+                    sheetContext,
+                    icon: Icons.radar_outlined,
+                    title: 'Radar meteo',
+                    action: onWeatherRadar,
+                  ),
+                  _menuItem(
+                    sheetContext,
+                    icon: Icons.add_location_alt_outlined,
+                    title: 'Aggiungi postazione',
+                    action: onAdd,
+                  ),
+                  _menuItem(
+                    sheetContext,
+                    icon: Icons.assignment_outlined,
+                    title: 'Rapporto d’intervento',
+                    action: onRapporti,
+                  ),
+                  const Divider(),
+                  _menuItem(
+                    sheetContext,
+                    icon: Icons.settings_outlined,
+                    title: 'Impostazioni',
+                    action: onSettings,
+                  ),
+                  _menuItem(
+                    sheetContext,
+                    icon: Icons.bug_report_outlined,
+                    title: 'Debug',
+                    action: onDebug,
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.info_outline),
+                    title: const Text('Disclaimer'),
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      _showDisclaimer(context);
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
         ),
       );
+
+  Widget _menuItem(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required VoidCallback action,
+  }) => ListTile(
+    leading: Icon(icon),
+    title: Text(title),
+    onTap: () {
+      Navigator.pop(context);
+      action();
+    },
+  );
+
+  Future<void> _showDisclaimer(BuildContext context) => showDialog<void>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('Disclaimer GPS Pointer'),
+      content: const SingleChildScrollView(
+        child: Text(
+          'GPS Pointer è uno strumento di supporto al puntamento e alla '
+          'valutazione tecnica sul campo. Le indicazioni di copertura, LOS, '
+          'Fresnel, quote, meteo, azimut e orientamento dipendono dai dati '
+          'disponibili, dai modelli esterni e dalla qualità dei sensori del '
+          'dispositivo. Prima dell’installazione definitiva è sempre '
+          'necessaria la verifica tecnica sul posto.\n\n'
+          'Dati meteo e quote online: Open-Meteo.',
+        ),
+      ),
+      actions: [
+        FilledButton(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: const Text('OK'),
+        ),
+      ],
+    ),
+  );
 }
 
 final class _RadarHeader extends StatelessWidget {
@@ -375,6 +480,58 @@ final class _RadarTile extends StatelessWidget {
   );
 }
 
+final class _RadarWeatherTile extends StatelessWidget {
+  const _RadarWeatherTile({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.transparent,
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(15),
+      child: Ink(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(15),
+          gradient: const LinearGradient(
+            colors: [Color(0xEE0B3544), Color(0xEE0A2635)],
+          ),
+          border: Border.all(color: const Color(0x8843CFE8)),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.radar_outlined, color: Color(0xFF79E2F3), size: 30),
+            SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Radar meteo',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 14,
+                    ),
+                  ),
+                  SizedBox(height: 3),
+                  Text(
+                    'Pioggia radar • punto corrente • previsioni',
+                    style: TextStyle(color: Color(0xFFB7CBD4), fontSize: 10),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, color: Color(0xFF79E2F3)),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
 final class _RadarReportsTile extends StatelessWidget {
   const _RadarReportsTile({required this.onTap});
 
@@ -495,11 +652,19 @@ final class _RadarMockupBackdrop extends StatelessWidget {
     children: [
       const ColoredBox(color: Color(0xFF03131E)),
       Positioned.fill(
-        child: Image.asset(
-          'asset/pro_home_background.png',
-          fit: BoxFit.cover,
-          alignment: Alignment.bottomCenter,
-          filterQuality: FilterQuality.high,
+        top: -4,
+        bottom: -4,
+        child: ClipRect(
+          child: Transform(
+            alignment: Alignment.centerRight,
+            transform: Matrix4.diagonal3Values(1.065, 1, 1),
+            child: Image.asset(
+              'asset/pro_home_background.png',
+              fit: BoxFit.cover,
+              alignment: Alignment.bottomCenter,
+              filterQuality: FilterQuality.high,
+            ),
+          ),
         ),
       ),
       const DecoratedBox(
@@ -561,6 +726,9 @@ final class _ClassicHome extends StatelessWidget {
     required this.onAdd,
     required this.onSettings,
     required this.onDebug,
+    required this.onWeatherRadar,
+    required this.locationService,
+    required this.weatherService,
   });
 
   final VoidCallback onPostazioni;
@@ -571,6 +739,9 @@ final class _ClassicHome extends StatelessWidget {
   final VoidCallback onAdd;
   final VoidCallback onSettings;
   final VoidCallback onDebug;
+  final VoidCallback onWeatherRadar;
+  final DeviceLocationService? locationService;
+  final WeatherService? weatherService;
 
   @override
   Widget build(BuildContext context) {
@@ -583,6 +754,12 @@ final class _ClassicHome extends StatelessWidget {
           children: [
             Row(
               children: [
+                IconButton(
+                  tooltip: 'Menu',
+                  onPressed: () => _showQuickMenu(context),
+                  icon: const Icon(Icons.menu_rounded),
+                ),
+                const SizedBox(width: 4),
                 Image.asset(
                   'asset/fry_pointer.png',
                   width: 72,
@@ -608,6 +785,13 @@ final class _ClassicHome extends StatelessWidget {
                 ),
               ],
             ),
+            if (locationService != null && weatherService != null) ...[
+              const SizedBox(height: 10),
+              HomeWeatherStrip(
+                locationService: locationService!,
+                weatherService: weatherService!,
+              ),
+            ],
             const SizedBox(height: 18),
             Wrap(
               spacing: 12,
@@ -658,6 +842,18 @@ final class _ClassicHome extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 14),
+            OutlinedButton.icon(
+              onPressed: onWeatherRadar,
+              icon: const Icon(Icons.radar_outlined),
+              label: const Padding(
+                padding: EdgeInsets.symmetric(vertical: 13),
+                child: Text(
+                  'RADAR METEO',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
             FilledButton.icon(
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFF122A47),
@@ -690,6 +886,124 @@ final class _ClassicHome extends StatelessWidget {
       ),
     );
   }
+
+  Future<void> _showQuickMenu(BuildContext context) =>
+      showModalBottomSheet<void>(
+        context: context,
+        showDragHandle: true,
+        isScrollControlled: true,
+        builder: (sheetContext) => SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _classicMenuItem(
+                  sheetContext,
+                  icon: Icons.cell_tower,
+                  title: 'Postazioni Radio',
+                  action: onPostazioni,
+                ),
+                _classicMenuItem(
+                  sheetContext,
+                  icon: Icons.radar,
+                  title: 'Copertura',
+                  action: onCopertura,
+                ),
+                _classicMenuItem(
+                  sheetContext,
+                  icon: Icons.swap_horiz_rounded,
+                  title: 'Punto Punto',
+                  action: onPtp,
+                ),
+                _classicMenuItem(
+                  sheetContext,
+                  icon: Icons.cloud_download_outlined,
+                  title: 'Scarica dal server',
+                  action: onDownload,
+                ),
+                _classicMenuItem(
+                  sheetContext,
+                  icon: Icons.radar_outlined,
+                  title: 'Radar meteo',
+                  action: onWeatherRadar,
+                ),
+                _classicMenuItem(
+                  sheetContext,
+                  icon: Icons.add_location_alt_outlined,
+                  title: 'Aggiungi postazione',
+                  action: onAdd,
+                ),
+                _classicMenuItem(
+                  sheetContext,
+                  icon: Icons.assignment_outlined,
+                  title: 'Rapporto d’intervento',
+                  action: onRapporti,
+                ),
+                const Divider(),
+                _classicMenuItem(
+                  sheetContext,
+                  icon: Icons.settings_outlined,
+                  title: 'Impostazioni',
+                  action: onSettings,
+                ),
+                _classicMenuItem(
+                  sheetContext,
+                  icon: Icons.bug_report_outlined,
+                  title: 'Debug',
+                  action: onDebug,
+                ),
+                ListTile(
+                  leading: const Icon(Icons.info_outline),
+                  title: const Text('Disclaimer'),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    _showDisclaimer(context);
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+  Widget _classicMenuItem(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required VoidCallback action,
+  }) => ListTile(
+    leading: Icon(icon),
+    title: Text(title),
+    onTap: () {
+      Navigator.pop(context);
+      action();
+    },
+  );
+
+  Future<void> _showDisclaimer(BuildContext context) => showDialog<void>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('Disclaimer GPS Pointer'),
+      content: const SingleChildScrollView(
+        child: Text(
+          'GPS Pointer è uno strumento di supporto al puntamento e alla '
+          'valutazione tecnica sul campo. Le indicazioni di copertura, LOS, '
+          'Fresnel, quote, meteo e direzione dipendono dai dati disponibili, '
+          'dalla precisione dei sensori e dai modelli utilizzati. '
+          'Verificare sempre sul posto le condizioni reali prima '
+          'dell’installazione. Le informazioni meteo e radar sono servizi '
+          'informativi di terze parti e possono non essere disponibili.',
+        ),
+      ),
+      actions: [
+        FilledButton(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: const Text('OK'),
+        ),
+      ],
+    ),
+  );
 }
 
 final class _ClassicButton extends StatelessWidget {
