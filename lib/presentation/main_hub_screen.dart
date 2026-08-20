@@ -19,6 +19,7 @@ final class MainHubScreen extends StatelessWidget {
     required this.onSettings,
     required this.onDebug,
     required this.onWeatherRadar,
+    required this.onComida,
     this.locationService,
     this.weatherService,
     super.key,
@@ -34,6 +35,7 @@ final class MainHubScreen extends StatelessWidget {
   final VoidCallback onSettings;
   final VoidCallback onDebug;
   final VoidCallback onWeatherRadar;
+  final VoidCallback onComida;
   final DeviceLocationService? locationService;
   final WeatherService? weatherService;
 
@@ -49,6 +51,7 @@ final class MainHubScreen extends StatelessWidget {
           onSettings: onSettings,
           onDebug: onDebug,
           onWeatherRadar: onWeatherRadar,
+          onComida: onComida,
           locationService: locationService,
           weatherService: weatherService,
         )
@@ -62,6 +65,7 @@ final class MainHubScreen extends StatelessWidget {
           onSettings: onSettings,
           onDebug: onDebug,
           onWeatherRadar: onWeatherRadar,
+          onComida: onComida,
           locationService: locationService,
           weatherService: weatherService,
         );
@@ -78,6 +82,7 @@ final class _RadarProHome extends StatelessWidget {
     required this.onSettings,
     required this.onDebug,
     required this.onWeatherRadar,
+    required this.onComida,
     required this.locationService,
     required this.weatherService,
   });
@@ -91,6 +96,7 @@ final class _RadarProHome extends StatelessWidget {
   final VoidCallback onSettings;
   final VoidCallback onDebug;
   final VoidCallback onWeatherRadar;
+  final VoidCallback onComida;
   final DeviceLocationService? locationService;
   final WeatherService? weatherService;
 
@@ -169,6 +175,13 @@ final class _RadarProHome extends StatelessWidget {
                                 subtitle: 'Log e diagnostica',
                                 onTap: onDebug,
                               ),
+                              _RadarTile(
+                                icon: Icons.restaurant_menu,
+                                assetIcon: 'asset/comida_button.png',
+                                title: 'Comida',
+                                subtitle: 'Locali vicino a te',
+                                onTap: onComida,
+                              ),
                             ],
                           ),
                           SizedBox(height: gap),
@@ -235,6 +248,12 @@ final class _RadarProHome extends StatelessWidget {
                     icon: Icons.radar_outlined,
                     title: 'Radar meteo',
                     action: onWeatherRadar,
+                  ),
+                  _menuItem(
+                    sheetContext,
+                    icon: Icons.restaurant_menu,
+                    title: 'Comida',
+                    action: onComida,
                   ),
                   _menuItem(
                     sheetContext,
@@ -416,9 +435,11 @@ final class _RadarTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.assetIcon,
   });
 
   final IconData icon;
+  final String? assetIcon;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
@@ -451,7 +472,14 @@ final class _RadarTile extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, color: const Color(0xFFF5FAFC), size: 32),
+              if (assetIcon != null)
+                SizedBox(
+                  width: 92,
+                  height: 42,
+                  child: Image.asset(assetIcon!, fit: BoxFit.contain),
+                )
+              else
+                Icon(icon, color: const Color(0xFFF5FAFC), size: 32),
               const SizedBox(height: 8),
               Text(
                 title,
@@ -727,6 +755,7 @@ final class _ClassicHome extends StatelessWidget {
     required this.onSettings,
     required this.onDebug,
     required this.onWeatherRadar,
+    required this.onComida,
     required this.locationService,
     required this.weatherService,
   });
@@ -740,6 +769,7 @@ final class _ClassicHome extends StatelessWidget {
   final VoidCallback onSettings;
   final VoidCallback onDebug;
   final VoidCallback onWeatherRadar;
+  final VoidCallback onComida;
   final DeviceLocationService? locationService;
   final WeatherService? weatherService;
 
@@ -839,6 +869,14 @@ final class _ClassicHome extends StatelessWidget {
                   subtitle: 'Log e diagnostica',
                   onTap: onDebug,
                 ),
+                _ClassicButton(
+                  width: tileWidth,
+                  icon: Icons.restaurant_menu,
+                  assetIcon: 'asset/comida_button.png',
+                  title: 'Comida',
+                  subtitle: 'Locali vicino a te',
+                  onTap: onComida,
+                ),
               ],
             ),
             const SizedBox(height: 14),
@@ -930,6 +968,12 @@ final class _ClassicHome extends StatelessWidget {
                 ),
                 _classicMenuItem(
                   sheetContext,
+                  icon: Icons.restaurant_menu,
+                  title: 'Comida',
+                  action: onComida,
+                ),
+                _classicMenuItem(
+                  sheetContext,
                   icon: Icons.add_location_alt_outlined,
                   title: 'Aggiungi postazione',
                   action: onAdd,
@@ -1013,10 +1057,12 @@ final class _ClassicButton extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.assetIcon,
   });
 
   final double width;
   final IconData icon;
+  final String? assetIcon;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
@@ -1034,7 +1080,14 @@ final class _ClassicButton extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 36),
+              if (assetIcon != null)
+                SizedBox(
+                  width: 104,
+                  height: 48,
+                  child: Image.asset(assetIcon!, fit: BoxFit.contain),
+                )
+              else
+                Icon(icon, size: 36),
               const SizedBox(height: 10),
               Text(
                 title,
