@@ -42,6 +42,7 @@ import 'simulations_screen.dart';
 import 'intervention_reports_screen.dart';
 import 'server_catalogue_screen.dart';
 import 'weather_radar_screen.dart';
+import 'comida_screen.dart';
 
 final GlobalKey<NavigatorState> gpsPointerNavigatorKey =
     GlobalKey<NavigatorState>();
@@ -160,6 +161,22 @@ final class GpsPointerApp extends StatelessWidget {
                   MaterialPageRoute<void>(
                     builder: (_) =>
                         WeatherRadarScreen(locationService: locationService),
+                  ),
+                ),
+                onComida: () => Navigator.of(navContext).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) => ComidaScreen(
+                      locationService: locationService,
+                      serverBaseUri: Uri.parse(
+                        'https://gpspointer.ernet.it:9443',
+                      ),
+                      authController: authController,
+                      submittedBy:
+                          authController.user?.displayName ??
+                          authController.savedDisplayName ??
+                          authController.user?.username ??
+                          authController.savedUsername,
+                    ),
                   ),
                 ),
                 onPtp: () => Navigator.of(navContext).push<void>(
