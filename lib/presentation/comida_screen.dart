@@ -932,6 +932,217 @@ final class _ComidaEditorScreenState extends State<_ComidaEditorScreen> {
     }
   }
 
+  Future<void> _pickQuarterHour(
+    TextEditingController controller,
+    String title,
+  ) async {
+    final existing = RegExp(
+      r'^([01]\d|2[0-3]):([0-5]\d)$',
+    ).firstMatch(controller.text.trim());
+
+    final now = DateTime.now();
+
+    var initialHour = existing != null
+        ? int.parse(existing.group(1)!)
+        : now.hour;
+
+    var initialMinute = existing != null
+        ? int.parse(existing.group(2)!)
+        : ((now.minute / 15).round() * 15);
+
+    if (initialMinute == 60) {
+      initialMinute = 0;
+      initialHour = (initialHour + 1) % 24;
+    }
+
+    final minuteIndex = switch (initialMinute) {
+      < 8 => 0,
+      < 23 => 1,
+      < 38 => 2,
+      < 53 => 3,
+      _ => 0,
+    };
+
+    var selectedHour = initialHour;
+    var selectedMinuteIndex = minuteIndex;
+
+    final hourController = FixedExtentScrollController(
+      initialItem: initialHour,
+    );
+    final minuteController = FixedExtentScrollController(
+      initialItem: minuteIndex,
+    );
+
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final minute = const [0, 15, 30, 45][selectedMinuteIndex];
+
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${selectedHour.toString().padLeft(2, '0')}:'
+                      '${minute.toString().padLeft(2, '0')}',
+                      style: Theme.of(context).textTheme.headlineMedium
+                          ?.copyWith(
+                            color: Theme.of(context).colorScheme.primary,
+                            fontWeight: FontWeight.w900,
+                          ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      height: 190,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              children: [
+                                const Text(
+                                  'ORE',
+                                  style: TextStyle(fontWeight: FontWeight.w800),
+                                ),
+                                Expanded(
+                                  child: ListWheelScrollView.useDelegate(
+                                    controller: hourController,
+                                    itemExtent: 46,
+                                    physics: const FixedExtentScrollPhysics(),
+                                    diameterRatio: 1.35,
+                                    onSelectedItemChanged: (index) {
+                                      setSheetState(() {
+                                        selectedHour = index;
+                                      });
+                                    },
+                                    childDelegate:
+                                        ListWheelChildBuilderDelegate(
+                                          childCount: 24,
+                                          builder: (context, index) => Center(
+                                            child: Text(
+                                              index.toString().padLeft(2, '0'),
+                                              style: const TextStyle(
+                                                fontSize: 24,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            ':',
+                            style: Theme.of(context).textTheme.headlineMedium
+                                ?.copyWith(fontWeight: FontWeight.w900),
+                          ),
+                          Expanded(
+                            child: Column(
+                              children: [
+                                const Text(
+                                  'MINUTI',
+                                  style: TextStyle(fontWeight: FontWeight.w800),
+                                ),
+                                Expanded(
+                                  child: ListWheelScrollView.useDelegate(
+                                    controller: minuteController,
+                                    itemExtent: 46,
+                                    physics: const FixedExtentScrollPhysics(),
+                                    diameterRatio: 1.35,
+                                    onSelectedItemChanged: (index) {
+                                      setSheetState(() {
+                                        selectedMinuteIndex = index;
+                                      });
+                                    },
+                                    childDelegate:
+                                        ListWheelChildBuilderDelegate(
+                                          childCount: 4,
+                                          builder: (context, index) => Center(
+                                            child: Text(
+                                              const [
+                                                '00',
+                                                '15',
+                                                '30',
+                                                '45',
+                                              ][index],
+                                              style: const TextStyle(
+                                                fontSize: 24,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.of(sheetContext).pop(),
+                            child: const Text('ANNULLA'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: () {
+                              final selectedMinute = const [
+                                0,
+                                15,
+                                30,
+                                45,
+                              ][selectedMinuteIndex];
+
+                              Navigator.of(sheetContext).pop(
+                                '${selectedHour.toString().padLeft(2, '0')}:'
+                                '${selectedMinute.toString().padLeft(2, '0')}',
+                              );
+                            },
+                            icon: const Icon(Icons.schedule),
+                            label: const Text('IMPOSTA'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    hourController.dispose();
+    minuteController.dispose();
+
+    if (result != null && mounted) {
+      setState(() {
+        controller.text = result;
+      });
+    }
+  }
+
   String? _openingHours() {
     final opening = _opening.text.trim();
     final closing = _closing.text.trim();
@@ -1277,11 +1488,17 @@ final class _ComidaEditorScreenState extends State<_ComidaEditorScreen> {
                 Expanded(
                   child: TextField(
                     controller: _opening,
-                    keyboardType: TextInputType.datetime,
-                    decoration: const InputDecoration(
+                    readOnly: true,
+                    onTap: () => _pickQuarterHour(_opening, 'Apertura'),
+                    decoration: InputDecoration(
                       labelText: 'Apertura',
                       hintText: '09:00',
-                      border: OutlineInputBorder(),
+                      border: const OutlineInputBorder(),
+                      suffixIcon: IconButton(
+                        tooltip: 'Seleziona apertura',
+                        onPressed: () => _pickQuarterHour(_opening, 'Apertura'),
+                        icon: const Icon(Icons.schedule),
+                      ),
                     ),
                   ),
                 ),
@@ -1289,11 +1506,17 @@ final class _ComidaEditorScreenState extends State<_ComidaEditorScreen> {
                 Expanded(
                   child: TextField(
                     controller: _closing,
-                    keyboardType: TextInputType.datetime,
-                    decoration: const InputDecoration(
+                    readOnly: true,
+                    onTap: () => _pickQuarterHour(_closing, 'Chiusura'),
+                    decoration: InputDecoration(
                       labelText: 'Chiusura',
                       hintText: '23:00',
-                      border: OutlineInputBorder(),
+                      border: const OutlineInputBorder(),
+                      suffixIcon: IconButton(
+                        tooltip: 'Seleziona chiusura',
+                        onPressed: () => _pickQuarterHour(_closing, 'Chiusura'),
+                        icon: const Icon(Icons.schedule),
+                      ),
                     ),
                   ),
                 ),
