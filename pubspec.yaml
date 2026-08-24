@@ -1,4 +1,4 @@
-﻿name: gps_pointer
+name: gps_pointer
 description: "App Android per individuare la direzione dei radiofari"
 publish_to: 'none'
 version: 1.0.0+63
@@ -68,4 +68,3 @@ flutter_launcher_icons:
   ios: false
   image_path: asset/fry_app.png
   min_sdk_android: 24
-
