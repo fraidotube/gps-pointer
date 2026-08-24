@@ -1,8 +1,8 @@
 # GPS Pointer
 
-GPS Pointer Ã¨ un'app Android sviluppata in Flutter per supportare attivitÃ  sul campo legate a orientamento, puntamento, **Postazioni Radio**, analisi preliminare dei collegamenti, profili altimetrici, meteo operativo, rapporti d'intervento e servizi condivisi tramite il server GPS Pointer.
+GPS Pointer è un'app Android sviluppata in Flutter per supportare attività sul campo legate a orientamento, puntamento, **Postazioni Radio**, analisi preliminare dei collegamenti, profili altimetrici, meteo operativo, rapporti d'intervento e servizi condivisi tramite il server GPS Pointer.
 
-Questa documentazione descrive la **release GPS Pointer 2.6.3**, build **1.0.0+63**, ed Ã¨ stata verificata sul codice reale della build 59.
+Questa documentazione descrive la **release GPS Pointer 2.6.3**, build **1.0.0+63**, ed è stata verificata sul codice reale della build 63.
 
 > **Azimuth e AR**
 >
@@ -12,7 +12,7 @@ Questa documentazione descrive la **release GPS Pointer 2.6.3**, build **1.0.0+6
 
 ## Postazioni Radio
 
-La terminologia corrente dell'interfaccia Ã¨ **Postazioni Radio**.
+La terminologia corrente dell'interfaccia è **Postazioni Radio**.
 
 Dalla Home e dal menu sono disponibili funzioni dedicate a:
 
@@ -22,7 +22,7 @@ Dalla Home e dal menu sono disponibili funzioni dedicate a:
 - inserimento di una nuova postazione;
 - utilizzo delle postazioni nelle funzioni di Copertura.
 
-Nel codice sono ancora presenti alcuni identificatori e messaggi tecnici storici con la parola â€œradiofariâ€; il README usa invece la terminologia corrente mostrata nell'interfaccia: **Postazioni Radio**.
+Nel codice sono ancora presenti alcuni identificatori e messaggi tecnici storici con la parola “radiofari”; il README usa invece la terminologia corrente mostrata nell'interfaccia: **Postazioni Radio**.
 
 ---
 
@@ -47,7 +47,7 @@ Azimuth e AR rimangono strumenti sperimentali e di supporto.
 
 La schermata **Copertura** permette di selezionare una Postazione Radio e un punto di partenza.
 
-Il punto di partenza puÃ² essere definito tramite:
+Il punto di partenza può essere definito tramite:
 
 - posizione attuale;
 - coordinate;
@@ -67,13 +67,13 @@ La schermata comprende:
 - condivisione;
 - invio al server.
 
-Ãˆ inoltre presente il comando per calcolare i **4 piÃ¹ vicini** quando richiesto dall'utente.
+È inoltre presente il comando per calcolare i **4 più vicini** quando richiesto dall'utente.
 
 ---
 
 ## Punto Punto (PTP)
 
-La funzione **Punto Punto â€¢ PTP** permette di analizzare un collegamento tra Punto A e Punto B.
+La funzione **Punto Punto • PTP** permette di analizzare un collegamento tra Punto A e Punto B.
 
 Per ciascun punto sono disponibili:
 
@@ -89,7 +89,7 @@ Il risultato comprende:
 - linea ottica;
 - prima zona di Fresnel;
 - mappa;
-- tilt A â†’ B;
+- tilt A → B;
 - salvataggio;
 - condivisione;
 - invio al server.
@@ -98,7 +98,7 @@ Il risultato comprende:
 
 ## Meteo e radar
 
-La build 59 usa servizi distinti per funzioni diverse:
+La build 63 usa servizi distinti per funzioni diverse:
 
 - **MET Norway** per le previsioni meteo;
 - **RainViewer** per il radar precipitazioni;
@@ -110,7 +110,7 @@ La schermata **Radar meteo** mostra i frame radar disponibili e le previsioni pe
 
 ## Rapporti d'intervento
 
-GPS Pointer comprende una sezione dedicata ai **Rapporti dâ€™intervento**.
+GPS Pointer comprende una sezione dedicata ai **Rapporti d’intervento**.
 
 Nel progetto sono presenti:
 
@@ -122,13 +122,13 @@ Nel progetto sono presenti:
 - condivisione;
 - integrazione con il server.
 
-La generazione del PDF Ã¨ gestita da un servizio applicativo dedicato.
+La generazione del PDF è gestita da un servizio applicativo dedicato.
 
 ---
 
 # Comida
 
-**Comida** Ã¨ il modulo introdotto nella release 2.5 per trovare, consultare e condividere locali.
+**Comida** è il modulo introdotto nella release 2.5 per trovare, consultare e condividere locali.
 
 La Home Comida contiene:
 
@@ -146,7 +146,7 @@ La ricerca usa la posizione corrente e un raggio configurabile:
 - 30 km
 - 50 km
 
-Il raggio iniziale Ã¨ **10 km**.
+Il raggio iniziale è **10 km**.
 
 I locali presenti nel database GPS Pointer vengono mostrati prima dei risultati OpenStreetMap.
 
@@ -160,7 +160,7 @@ Sono disponibili filtri per:
 
 Comida usa OpenStreetMap tramite Overpass per i locali esterni.
 
-La build 59 contiene fallback sequenziale fra:
+La build 63 contiene fallback sequenziale fra:
 
 1. `overpass-api.de`
 2. `overpass.private.coffee`
@@ -174,7 +174,7 @@ I dati esterni vengono mostrati solo quando realmente disponibili.
 
 I locali curati dalla community vengono salvati sul server GPS Pointer.
 
-Un record Comida puÃ² comprendere:
+Un record Comida può comprendere:
 
 - nome;
 - tipologia;
@@ -190,7 +190,7 @@ Un record Comida puÃ² comprendere:
 
 ## Bollini
 
-La build 59 supporta:
+La build 63 supporta:
 
 - **GOLD**
 - **SILVER**
@@ -207,10 +207,10 @@ I risultati vengono ordinati in base alla distanza dalla posizione corrente.
 
 ## Aggiungi locale
 
-La posizione puÃ² essere definita tramite:
+La posizione può essere definita tramite:
 
 - **QUI DOVE SONO**
-- ricerca per nome locale / indirizzo / localitÃ ;
+- ricerca per nome locale / indirizzo / località;
 - link Google Maps;
 - coordinate manuali.
 
@@ -226,11 +226,11 @@ Il form comprende anche:
 - chiusura;
 - descrizione / nota.
 
-L'orario Ã¨ volutamente semplice: **un unico orario del locale**, con Apertura e Chiusura; puÃ² essere compilato anche solo uno dei due campi.
+L'orario è volutamente semplice: **un unico orario del locale**, con Apertura e Chiusura; può essere compilato anche solo uno dei due campi.
 
 ## Da OSM a Comida
 
-Un locale proveniente da OpenStreetMap puÃ² essere selezionato con **AGGIUNGI A COMIDA**.
+Un locale proveniente da OpenStreetMap può essere selezionato con **AGGIUNGI A COMIDA**.
 
 L'app apre il form con i dati disponibili e conserva il riferimento sorgente OSM (`source_ref`).
 
@@ -238,9 +238,9 @@ Il locale viene quindi inviato al server GPS Pointer e diventa parte del databas
 
 ## Modifica di un locale
 
-Un locale giÃ  presente nel database GPS Pointer puÃ² essere modificato direttamente dall'app.
+Un locale già presente nel database GPS Pointer può essere modificato direttamente dall'app.
 
-La build 59 usa:
+La build 63 usa:
 
 - `POST` per creazione/promozione;
 - `PATCH` per aggiornamento;
@@ -266,7 +266,7 @@ La ricerca Google viene aperta esternamente: GPS Pointer non esegue scraping dei
 
 # API Comida usate dall'app
 
-La build 59 contiene chiamate verso:
+La build 63 contiene chiamate verso:
 
 - `GET /api/v1/comida/restaurants`
 - `POST /api/v1/comida/restaurants`
@@ -280,14 +280,14 @@ Le scritture sono autenticate.
 
 # Struttura del progetto
 
-La struttura principale verificata della build 59 Ã¨:
+La struttura principale verificata della build 63 è:
 
 ```text
 lib/
-â”œâ”€â”€ application/
-â”œâ”€â”€ core/
-â”œâ”€â”€ infrastructure/
-â””â”€â”€ presentation/
+├── application/
+├── core/
+├── infrastructure/
+└── presentation/
 ```
 
 ## `application/`
@@ -310,7 +310,7 @@ Contiene le schermate e i componenti dell'interfaccia, fra cui Home, Postazioni 
 
 # Home e temi
 
-La build 59 contiene due presentazioni della Home:
+La build 63 contiene due presentazioni della Home:
 
 - una variante radar/pro;
 - una variante classica/semplice.
@@ -321,7 +321,7 @@ Le funzioni operative principali sono rese disponibili da entrambe.
 
 # Server GPS Pointer
 
-Il server GPS Pointer Ã¨ mantenuto in un repository separato e fornisce servizi condivisi all'app.
+Il server GPS Pointer è mantenuto in un repository separato e fornisce servizi condivisi all'app.
 
 Repository server:
 
@@ -345,9 +345,9 @@ Build Flutter:
 
 # Limiti d'uso
 
-GPS Pointer Ã¨ uno strumento di supporto.
+GPS Pointer è uno strumento di supporto.
 
-GPS, sensori del telefono, servizi cartografici, dati altimetrici e dati meteo possono essere soggetti a errori, ritardi o indisponibilitÃ .
+GPS, sensori del telefono, servizi cartografici, dati altimetrici e dati meteo possono essere soggetti a errori, ritardi o indisponibilità.
 
 Le funzioni **Azimuth** e **AR** sono esplicitamente sperimentali e non sostituiscono strumenti professionali o certificati.
 
@@ -357,7 +357,7 @@ Le funzioni **Azimuth** e **AR** sono esplicitamente sperimentali e non sostitui
 
 Comida utilizza dati OpenStreetMap.
 
-**Â© OpenStreetMap contributors**
+**© OpenStreetMap contributors**
 
 I dati OpenStreetMap sono soggetti alla relativa licenza ODbL.
 
