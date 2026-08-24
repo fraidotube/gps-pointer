@@ -525,15 +525,6 @@ final class _LoadingStrip extends StatelessWidget {
           ),
         ),
       ),
-      const SizedBox(height: 8),
-      const Text(
-        'durata minima 4,2 s',
-        style: TextStyle(
-          color: Color(0xFF678795),
-          fontSize: 9,
-          letterSpacing: .3,
-        ),
-      ),
     ],
   );
 }

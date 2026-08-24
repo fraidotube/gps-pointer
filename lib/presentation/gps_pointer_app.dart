@@ -13,6 +13,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../application/app_auth.dart';
 import '../application/app_visual_theme.dart';
+import '../application/app_update_service.dart';
 import '../application/app_file_association_settings.dart';
 import '../application/catalogue_controller.dart';
 import '../application/pointing_controller.dart';
@@ -29,6 +30,7 @@ import '../core/core.dart';
 import '../core/intervention_report.dart';
 import '../core/geo/pointing_engine_v3_field.dart';
 import 'app_auth_gate.dart';
+import 'app_update_flow.dart';
 import 'antenna_tilt_screen.dart';
 import 'compass_screen.dart';
 import 'guidance_overlay.dart';
@@ -1380,6 +1382,46 @@ final class _CatalogueSettingsScreen extends StatelessWidget {
                   listenable: visualThemeController,
                   builder: (context, _) => VisualThemeSelectorCard(
                     controller: visualThemeController,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Aggiornamenti',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Controlla se su GitHub è disponibile una nuova '
+                          'versione di GPS Pointer.',
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: () async {
+                              final client = http.Client();
+                              try {
+                                await showAppUpdateCheck(
+                                  context,
+                                  AppUpdateService(client: client),
+                                  manual: true,
+                                );
+                              } finally {
+                                client.close();
+                              }
+                            },
+                            icon: const Icon(Icons.system_update_alt),
+                            label: const Text('CONTROLLA AGGIORNAMENTI'),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),

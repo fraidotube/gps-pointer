@@ -14,6 +14,8 @@ import android.hardware.SensorEventListener
 import android.os.Build
 import android.media.AudioManager
 import android.media.ToneGenerator
+import java.io.File
+import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -173,6 +175,64 @@ class MainActivity : FlutterFragmentActivity() {
                     rotationVectorListener = null
                 }
             })
+        }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "io.github.fraidotube.gpspointer/apk_installer",
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "installApk" -> {
+                    val path = call.argument<String>("path")
+                    if (path.isNullOrBlank()) {
+                        result.error("invalid_path", "Percorso APK non valido.", null)
+                        return@setMethodCallHandler
+                    }
+
+                    try {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                            !packageManager.canRequestPackageInstalls()
+                        ) {
+                            val settingsIntent = Intent(
+                                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                                Uri.parse("package:$packageName"),
+                            )
+                            startActivity(settingsIntent)
+                            result.success("permission_required")
+                            return@setMethodCallHandler
+                        }
+
+                        val apkFile = File(path)
+                        if (!apkFile.isFile) {
+                            result.error("apk_missing", "APK non trovato.", null)
+                            return@setMethodCallHandler
+                        }
+
+                        val contentUri = FileProvider.getUriForFile(
+                            this,
+                            "$packageName.fileprovider",
+                            apkFile,
+                        )
+                        val installIntent = Intent(Intent.ACTION_VIEW).apply {
+                            setDataAndType(
+                                contentUri,
+                                "application/vnd.android.package-archive",
+                            )
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        startActivity(installIntent)
+                        result.success("started")
+                    } catch (error: Exception) {
+                        result.error(
+                            "install_failed",
+                            error.message ?: "Avvio installer non riuscito.",
+                            null,
+                        )
+                    }
+                }
+                else -> result.notImplemented()
+            }
         }
 
         MethodChannel(

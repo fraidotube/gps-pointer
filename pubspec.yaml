@@ -1,7 +1,7 @@
 name: gps_pointer
 description: "App Android per individuare la direzione dei radiofari"
 publish_to: 'none'
-version: 1.0.0+59
+version: 1.0.0+62
 
 environment:
   sdk: ^3.12.2
@@ -12,6 +12,7 @@ dependencies:
   camera: 0.12.0+2
   camera_android: 0.10.11
   cupertino_icons: ^1.0.8
+  crypto: ^3.0.6
   cross_file: 0.3.5+4
   file_selector: 1.0.4
   flutter_compass: 0.8.1

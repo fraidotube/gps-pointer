@@ -7,6 +7,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 import 'application/app_auth.dart';
 import 'application/app_visual_theme.dart';
+import 'application/app_update_service.dart';
 import 'application/catalogue_controller.dart';
 import 'application/catalogue_export_service.dart';
 import 'application/pointing_controller.dart';
@@ -27,6 +28,7 @@ import 'infrastructure/open_meteo_elevation_provider.dart';
 import 'infrastructure/open_meteo_profile_elevation_provider.dart';
 import 'infrastructure/system_radio_beacon_file_picker.dart';
 import 'presentation/gps_pointer_app.dart';
+import 'presentation/app_update_flow.dart';
 import 'presentation/launch_splash.dart';
 
 Future<void> main() async {
@@ -56,6 +58,7 @@ Future<void> main() async {
     repository: repository,
   );
   final httpClient = http.Client();
+  final appUpdateService = AppUpdateService(client: httpClient);
   final locationService = GeolocatorDeviceLocationService();
   final weatherService = OpenMeteoWeatherService(httpClient);
   final elevationProvider = OpenMeteoElevationProvider(httpClient);
@@ -113,6 +116,8 @@ Future<void> main() async {
       ),
     ),
   );
+
+  scheduleAutomaticAppUpdateCheck(appUpdateService, gpsPointerNavigatorKey);
 
   Future<bool> promptIncomingImport({
     required IncomingSimulationPayload payload,
