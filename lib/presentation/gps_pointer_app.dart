@@ -38,13 +38,13 @@ import 'main_hub_screen.dart';
 import 'debug_tools_screen.dart';
 import 'coverage_screen.dart';
 import 'ptp_screen.dart';
-import 'add_radio_station_screen.dart';
 import 'altimetry_screen.dart';
 import 'simulations_screen.dart';
 import 'intervention_reports_screen.dart';
 import 'server_catalogue_screen.dart';
 import 'weather_radar_screen.dart';
 import 'comida_screen.dart';
+import 'tlc_updates_screen.dart';
 
 final GlobalKey<NavigatorState> gpsPointerNavigatorKey =
     GlobalKey<NavigatorState>();
@@ -216,10 +216,14 @@ final class GpsPointerApp extends StatelessWidget {
                     ),
                   ),
                 ),
-                onAdd: () => Navigator.of(navContext).push<void>(
+                onUpdates: () => Navigator.of(navContext).push<void>(
                   MaterialPageRoute<void>(
-                    builder: (_) =>
-                        AddRadioStationScreen(controller: controller),
+                    builder: (_) => TlcUpdatesScreen(
+                      serverBaseUri: Uri.parse(
+                        'https://gpspointer.ernet.it:9443',
+                      ),
+                      authController: authController,
+                    ),
                   ),
                 ),
                 onSettings: () => Navigator.of(navContext).push<void>(

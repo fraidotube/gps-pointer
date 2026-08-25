@@ -15,11 +15,11 @@ final class MainHubScreen extends StatelessWidget {
     required this.onPtp,
     required this.onRapporti,
     required this.onDownload,
-    required this.onAdd,
     required this.onSettings,
     required this.onDebug,
     required this.onWeatherRadar,
     required this.onComida,
+    required this.onUpdates,
     this.locationService,
     this.weatherService,
     super.key,
@@ -31,11 +31,11 @@ final class MainHubScreen extends StatelessWidget {
   final VoidCallback onPtp;
   final VoidCallback onRapporti;
   final VoidCallback onDownload;
-  final VoidCallback onAdd;
   final VoidCallback onSettings;
   final VoidCallback onDebug;
   final VoidCallback onWeatherRadar;
   final VoidCallback onComida;
+  final VoidCallback onUpdates;
   final DeviceLocationService? locationService;
   final WeatherService? weatherService;
 
@@ -47,11 +47,11 @@ final class MainHubScreen extends StatelessWidget {
           onPtp: onPtp,
           onRapporti: onRapporti,
           onDownload: onDownload,
-          onAdd: onAdd,
           onSettings: onSettings,
           onDebug: onDebug,
           onWeatherRadar: onWeatherRadar,
           onComida: onComida,
+          onUpdates: onUpdates,
           locationService: locationService,
           weatherService: weatherService,
         )
@@ -61,11 +61,11 @@ final class MainHubScreen extends StatelessWidget {
           onPtp: onPtp,
           onRapporti: onRapporti,
           onDownload: onDownload,
-          onAdd: onAdd,
           onSettings: onSettings,
           onDebug: onDebug,
           onWeatherRadar: onWeatherRadar,
           onComida: onComida,
+          onUpdates: onUpdates,
           locationService: locationService,
           weatherService: weatherService,
         );
@@ -78,11 +78,11 @@ final class _RadarProHome extends StatelessWidget {
     required this.onPtp,
     required this.onRapporti,
     required this.onDownload,
-    required this.onAdd,
     required this.onSettings,
     required this.onDebug,
     required this.onWeatherRadar,
     required this.onComida,
+    required this.onUpdates,
     required this.locationService,
     required this.weatherService,
   });
@@ -92,11 +92,11 @@ final class _RadarProHome extends StatelessWidget {
   final VoidCallback onPtp;
   final VoidCallback onRapporti;
   final VoidCallback onDownload;
-  final VoidCallback onAdd;
   final VoidCallback onSettings;
   final VoidCallback onDebug;
   final VoidCallback onWeatherRadar;
   final VoidCallback onComida;
+  final VoidCallback onUpdates;
   final DeviceLocationService? locationService;
   final WeatherService? weatherService;
 
@@ -164,10 +164,10 @@ final class _RadarProHome extends StatelessWidget {
                                 onTap: onDownload,
                               ),
                               _RadarTile(
-                                icon: Icons.add_location_alt_outlined,
-                                title: 'Aggiungi',
-                                subtitle: 'Nuova postazione',
-                                onTap: onAdd,
+                                icon: Icons.dynamic_feed_outlined,
+                                title: 'Aggiornamenti TLC',
+                                subtitle: 'News e video',
+                                onTap: onUpdates,
                               ),
                               _RadarTile(
                                 icon: Icons.bug_report_outlined,
@@ -257,9 +257,9 @@ final class _RadarProHome extends StatelessWidget {
                   ),
                   _menuItem(
                     sheetContext,
-                    icon: Icons.add_location_alt_outlined,
-                    title: 'Aggiungi postazione',
-                    action: onAdd,
+                    icon: Icons.dynamic_feed_outlined,
+                    title: 'Aggiornamenti TLC',
+                    action: onUpdates,
                   ),
                   _menuItem(
                     sheetContext,
@@ -751,11 +751,11 @@ final class _ClassicHome extends StatelessWidget {
     required this.onPtp,
     required this.onRapporti,
     required this.onDownload,
-    required this.onAdd,
     required this.onSettings,
     required this.onDebug,
     required this.onWeatherRadar,
     required this.onComida,
+    required this.onUpdates,
     required this.locationService,
     required this.weatherService,
   });
@@ -765,11 +765,11 @@ final class _ClassicHome extends StatelessWidget {
   final VoidCallback onPtp;
   final VoidCallback onRapporti;
   final VoidCallback onDownload;
-  final VoidCallback onAdd;
   final VoidCallback onSettings;
   final VoidCallback onDebug;
   final VoidCallback onWeatherRadar;
   final VoidCallback onComida;
+  final VoidCallback onUpdates;
   final DeviceLocationService? locationService;
   final WeatherService? weatherService;
 
@@ -857,10 +857,10 @@ final class _ClassicHome extends StatelessWidget {
                 ),
                 _ClassicButton(
                   width: tileWidth,
-                  icon: Icons.add_location_alt_outlined,
-                  title: 'Aggiungi',
-                  subtitle: 'Nuova postazione',
-                  onTap: onAdd,
+                  icon: Icons.dynamic_feed_outlined,
+                  title: 'Aggiornamenti TLC',
+                  subtitle: 'News e video',
+                  onTap: onUpdates,
                 ),
                 _ClassicButton(
                   width: tileWidth,
@@ -974,9 +974,9 @@ final class _ClassicHome extends StatelessWidget {
                 ),
                 _classicMenuItem(
                   sheetContext,
-                  icon: Icons.add_location_alt_outlined,
-                  title: 'Aggiungi postazione',
-                  action: onAdd,
+                  icon: Icons.dynamic_feed_outlined,
+                  title: 'Aggiornamenti TLC',
+                  action: onUpdates,
                 ),
                 _classicMenuItem(
                   sheetContext,
