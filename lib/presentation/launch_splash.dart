@@ -206,91 +206,12 @@ final class _ProSplashWordmark extends StatelessWidget {
   const _ProSplashWordmark();
 
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      const SizedBox(
-        width: 128,
-        height: 128,
-        child: CustomPaint(painter: _ProCompassLogoPainter()),
-      ),
-      const SizedBox(height: 6),
-      const Text(
-        'GPS',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 45,
-          height: .92,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 2,
-          shadows: [Shadow(color: Colors.black87, blurRadius: 8)],
-        ),
-      ),
-      const SizedBox(height: 2),
-      const Text(
-        'P O I N T E R',
-        style: TextStyle(
-          color: Color(0xFFFFA026),
-          fontSize: 14,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 4.1,
-          shadows: [Shadow(color: Colors.black87, blurRadius: 6)],
-        ),
-      ),
-    ],
+  Widget build(BuildContext context) => Image.asset(
+    'asset/gps_pointer_wordmark.png',
+    width: 220,
+    fit: BoxFit.contain,
+    filterQuality: FilterQuality.high,
   );
-}
-
-final class _ProCompassLogoPainter extends CustomPainter {
-  const _ProCompassLogoPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.shortestSide * .36;
-
-    final ring = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = size.shortestSide * .045
-      ..strokeCap = StrokeCap.round;
-
-    for (var i = 0; i < 4; i++) {
-      canvas.drawArc(
-        Rect.fromCircle(center: center, radius: radius),
-        (-math.pi / 4) + i * math.pi / 2,
-        math.pi / 2 - .34,
-        false,
-        ring,
-      );
-    }
-
-    // Needle geometry intentionally mirrors the original launcher mark:
-    // a long white tail to SW and a compact orange head to NE.
-    final whiteNeedle = Path()
-      ..moveTo(size.width * .18, size.height * .82)
-      ..lineTo(size.width * .46, size.height * .49)
-      ..lineTo(size.width * .57, size.height * .43)
-      ..lineTo(size.width * .38, size.height * .66)
-      ..close();
-    canvas.drawPath(whiteNeedle, Paint()..color = Colors.white);
-
-    final orangeNeedle = Path()
-      ..moveTo(size.width * .82, size.height * .17)
-      ..lineTo(size.width * .55, size.height * .52)
-      ..lineTo(size.width * .43, size.height * .57)
-      ..lineTo(size.width * .62, size.height * .34)
-      ..close();
-    canvas.drawPath(orangeNeedle, Paint()..color = const Color(0xFFFFA026));
-
-    canvas.drawCircle(
-      center,
-      size.shortestSide * .055,
-      Paint()..color = const Color(0xFF071A26),
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 final class _ClassicSplash extends StatelessWidget {

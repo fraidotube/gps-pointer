@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../application/app_auth.dart';
@@ -45,87 +43,11 @@ final class _AuthBrand extends StatelessWidget {
   const _AuthBrand();
 
   @override
-  Widget build(BuildContext context) => const Column(
-    children: [
-      SizedBox(
-        width: 78,
-        height: 78,
-        child: CustomPaint(painter: _AuthCompassLogoPainter()),
-      ),
-      SizedBox(height: 8),
-      Text(
-        'GPS',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 30,
-          height: .95,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 1.8,
-        ),
-      ),
-      SizedBox(height: 1),
-      Text(
-        'P O I N T E R',
-        style: TextStyle(
-          color: Color(0xFFFFA026),
-          fontSize: 9.5,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 2.8,
-        ),
-      ),
-    ],
+  Widget build(BuildContext context) => const Image(
+    image: AssetImage('asset/gps_pointer_wordmark.png'),
+    width: 186,
+    filterQuality: FilterQuality.high,
   );
-}
-
-final class _AuthCompassLogoPainter extends CustomPainter {
-  const _AuthCompassLogoPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.shortestSide * .36;
-
-    final ring = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = size.shortestSide * .055
-      ..strokeCap = StrokeCap.round;
-
-    for (var i = 0; i < 4; i++) {
-      canvas.drawArc(
-        Rect.fromCircle(center: center, radius: radius),
-        (-math.pi / 4) + i * math.pi / 2,
-        math.pi / 2 - .34,
-        false,
-        ring,
-      );
-    }
-
-    final whiteNeedle = Path()
-      ..moveTo(size.width * .18, size.height * .82)
-      ..lineTo(size.width * .46, size.height * .49)
-      ..lineTo(size.width * .57, size.height * .43)
-      ..lineTo(size.width * .38, size.height * .66)
-      ..close();
-    canvas.drawPath(whiteNeedle, Paint()..color = Colors.white);
-
-    final orangeNeedle = Path()
-      ..moveTo(size.width * .82, size.height * .17)
-      ..lineTo(size.width * .55, size.height * .52)
-      ..lineTo(size.width * .43, size.height * .57)
-      ..lineTo(size.width * .62, size.height * .34)
-      ..close();
-    canvas.drawPath(orangeNeedle, Paint()..color = const Color(0xFFFFA026));
-
-    canvas.drawCircle(
-      center,
-      size.shortestSide * .07,
-      Paint()..color = const Color(0xFF082531),
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 final class _LoginScreen extends StatefulWidget {

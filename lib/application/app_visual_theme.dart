@@ -452,45 +452,36 @@ final class VisualThemeSelectorCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = Theme.of(context).extension<GpsVisualStyle>();
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
           children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.palette_outlined,
-                  color: style?.cyan ?? Theme.of(context).colorScheme.primary,
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  'Tema grafico',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-              ],
+            Icon(
+              Icons.palette_outlined,
+              color: style?.cyan ?? Theme.of(context).colorScheme.primary,
             ),
-            const SizedBox(height: 6),
-            Text(
-              'Puoi cambiare l’aspetto dell’app senza modificare dati, '
-              'account o simulazioni. Su Android cambia anche l’icona launcher.',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 16),
-            for (final mode in AppVisualTheme.values) ...[
-              _ThemeOption(
-                mode: mode,
-                selected: controller.theme == mode,
-                busy: controller.busy,
-                onTap: () => controller.setTheme(mode),
-              ),
-              if (mode != AppVisualTheme.values.last)
-                const SizedBox(height: 10),
-            ],
+            const SizedBox(width: 10),
+            Text('Tema grafico', style: Theme.of(context).textTheme.titleLarge),
           ],
         ),
-      ),
+        const SizedBox(height: 6),
+        Text(
+          'Puoi cambiare l’aspetto dell’app senza modificare dati, '
+          'account o simulazioni. Su Android cambia anche l’icona launcher.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 14),
+        for (final mode in AppVisualTheme.values) ...[
+          _ThemeOption(
+            mode: mode,
+            selected: controller.theme == mode,
+            busy: controller.busy,
+            onTap: () => controller.setTheme(mode),
+          ),
+          if (mode != AppVisualTheme.values.last) const SizedBox(height: 10),
+        ],
+      ],
     );
   }
 }
