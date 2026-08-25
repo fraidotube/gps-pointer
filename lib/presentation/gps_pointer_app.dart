@@ -1331,232 +1331,202 @@ final class _CatalogueSettingsScreen extends StatelessWidget {
     listenable: controller,
     builder: (context, _) {
       final catalogue = controller.catalogue;
+      final displayName =
+          authController.user?.displayName ??
+          authController.savedDisplayName ??
+          'Utente GPS Pointer';
+      final username =
+          authController.user?.username ?? authController.savedUsername;
+
       return Scaffold(
         appBar: AppBar(title: const Text('Impostazioni')),
         body: GpsThemeBackground(
           child: SafeArea(
             child: ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(18, 10, 18, 28),
               children: [
                 _Messages(controller: controller),
                 if (controller.busy) const LinearProgressIndicator(),
                 const SizedBox(height: 8),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Account',
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          authController.user?.displayName ??
-                              authController.savedDisplayName ??
-                              'Utente GPS Pointer',
-                        ),
-                        if ((authController.user?.username ??
-                                authController.savedUsername) !=
-                            null)
-                          Text(
-                            authController.user?.username ??
-                                authController.savedUsername!,
-                          ),
-                        const SizedBox(height: 12),
-                        OutlinedButton.icon(
-                          onPressed: authController.busy
-                              ? null
-                              : () async {
-                                  await authController.logout();
-                                  if (context.mounted) {
-                                    Navigator.of(context).pop();
-                                  }
-                                },
-                          icon: const Icon(Icons.logout),
-                          label: const Text('Esci dall’account'),
-                        ),
-                      ],
+
+                _SettingsSection(
+                  icon: Icons.person_outline,
+                  title: 'Account',
+                  children: [
+                    _SettingsInfoRow(
+                      icon: Icons.badge_outlined,
+                      title: displayName,
+                      subtitle: username,
                     ),
-                  ),
+                    _SettingsActionRow(
+                      icon: Icons.logout,
+                      title: 'Esci dall’account',
+                      enabled: !authController.busy,
+                      onTap: () async {
+                        await authController.logout();
+                        if (context.mounted) {
+                          Navigator.of(context).pop();
+                        }
+                      },
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 12),
+
+                const SizedBox(height: 22),
+                const _SettingsSectionHeader(
+                  icon: Icons.palette_outlined,
+                  title: 'Aspetto',
+                ),
+                const SizedBox(height: 8),
                 ListenableBuilder(
                   listenable: visualThemeController,
                   builder: (context, _) => VisualThemeSelectorCard(
                     controller: visualThemeController,
                   ),
                 ),
-                const SizedBox(height: 12),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Aggiornamenti',
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Controlla se su GitHub è disponibile una nuova '
-                          'versione di GPS Pointer.',
-                        ),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            onPressed: () async {
-                              final client = http.Client();
-                              try {
-                                await showAppUpdateCheck(
-                                  context,
-                                  AppUpdateService(client: client),
-                                  manual: true,
-                                );
-                              } finally {
-                                client.close();
-                              }
-                            },
-                            icon: const Icon(Icons.system_update_alt),
-                            label: const Text('CONTROLLA AGGIORNAMENTI'),
-                          ),
-                        ),
-                      ],
+
+                const SizedBox(height: 22),
+                _SettingsSection(
+                  icon: Icons.system_update_alt,
+                  title: 'Aggiornamenti',
+                  children: [
+                    const _SettingsInfoRow(
+                      icon: Icons.cloud_outlined,
+                      title: 'Aggiornamenti applicazione',
+                      subtitle:
+                          'Controlla la release pubblicata e avvia l’aggiornamento in-app.',
                     ),
-                  ),
+                    _SettingsActionRow(
+                      icon: Icons.system_update_alt,
+                      title: 'Controlla aggiornamenti',
+                      onTap: () async {
+                        final client = http.Client();
+                        try {
+                          await showAppUpdateCheck(
+                            context,
+                            AppUpdateService(client: client),
+                            manual: true,
+                          );
+                        } finally {
+                          client.close();
+                        }
+                      },
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 12),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Associazione file simulazione',
-                          style: Theme.of(context).textTheme.titleLarge,
+
+                const SizedBox(height: 22),
+                _SettingsSection(
+                  icon: Icons.bug_report_outlined,
+                  title: 'Diagnostica',
+                  children: [
+                    _SettingsActionRow(
+                      icon: Icons.monitor_heart_outlined,
+                      title: 'Debug e diagnostica',
+                      subtitle: 'Log, sensori e strumenti tecnici',
+                      onTap: () => Navigator.of(context).push<void>(
+                        MaterialPageRoute<void>(
+                          builder: (_) =>
+                              DebugToolsScreen(controller: controller),
                         ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'GPS Pointer dichiara il supporto ai file .gpspsim. '
-                          'Android può comunque chiederti con quale app aprirli '
-                          'la prima volta.',
-                        ),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            onPressed: () async {
-                              final opened =
-                                  await AppFileAssociationSettings.openAndroidAppSettings();
-                              if (!opened && context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Impostazioni Android non disponibili.',
-                                    ),
-                                  ),
-                                );
-                              }
-                            },
-                            icon: const Icon(Icons.open_in_new),
-                            label: const Text(
-                              'APRI IMPOSTAZIONI ANDROID DELL’APP',
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        const Text(
-                          'Per il test: apri un .gpspsim da Download e scegli '
-                          'GPS Pointer. Se Android propone “Sempre”, puoi '
-                          'impostarlo come predefinito.',
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
+                  ],
                 ),
-                const SizedBox(height: 12),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Archivio radiofari',
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          catalogue == null
-                              ? 'Nessun archivio caricato'
-                              : 'File: ${catalogue.sourceFileName}',
-                        ),
-                        if (catalogue != null)
-                          Text(
-                            '${catalogue.beacons.length} radiofari caricati',
-                          ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Nome dispositivo: '
-                          '${controller.deviceDisplayName ?? 'non configurato'}',
-                        ),
-                        Text('ID tecnico: ${controller.installationId}'),
-                        const SizedBox(height: 8),
-                        OutlinedButton.icon(
-                          onPressed: controller.busy
-                              ? null
-                              : () => _editDeviceName(context, controller),
-                          icon: const Icon(Icons.edit),
-                          label: const Text('Modifica nome dispositivo'),
-                        ),
-                        const SizedBox(height: 12),
-                        const Text(
-                          'Il nuovo TXT viene validato completamente prima del '
-                          'salvataggio. Se contiene errori, l’archivio corrente '
-                          'non viene modificato.',
-                        ),
-                        const SizedBox(height: 16),
-                        SizedBox(
-                          width: double.infinity,
-                          child: FilledButton.icon(
-                            onPressed: controller.busy || authController.busy
-                                ? null
-                                : () => _downloadCatalogueFromServer(context),
-                            icon: const Icon(Icons.cloud_download_outlined),
-                            label: const Text('Scarica catalogo dal server'),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            onPressed: controller.busy
-                                ? null
-                                : () => _importCatalogue(context, controller),
-                            icon: const Icon(Icons.sync),
-                            label: const Text(
-                              'Sostituisci file TXT manualmente',
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            onPressed: controller.busy
-                                ? null
-                                : () => _confirmAndClearCatalogue(context),
-                            icon: const Icon(Icons.delete_sweep_outlined),
-                            label: const Text('Azzera lista radiofari'),
-                          ),
-                        ),
-                      ],
+
+                const SizedBox(height: 22),
+                _SettingsSection(
+                  icon: Icons.insert_drive_file_outlined,
+                  title: 'File simulazione',
+                  children: [
+                    const _SettingsInfoRow(
+                      icon: Icons.link_outlined,
+                      title: 'Associazione .gpspsim',
+                      subtitle:
+                          'GPS Pointer supporta i file .gpspsim. Android può chiedere quale app usare la prima volta.',
                     ),
-                  ),
+                    _SettingsActionRow(
+                      icon: Icons.open_in_new,
+                      title: 'Impostazioni Android dell’app',
+                      onTap: () async {
+                        final opened =
+                            await AppFileAssociationSettings.openAndroidAppSettings();
+                        if (!opened && context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Impostazioni Android non disponibili.',
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                    const _SettingsNote(
+                      'Per il test: apri un .gpspsim da Download e scegli '
+                      'GPS Pointer. Se Android propone “Sempre”, puoi '
+                      'impostarlo come predefinito.',
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 22),
+                _SettingsSection(
+                  icon: Icons.cell_tower_outlined,
+                  title: 'Archivio radiofari',
+                  children: [
+                    _SettingsInfoRow(
+                      icon: Icons.inventory_2_outlined,
+                      title: catalogue == null
+                          ? 'Nessun archivio caricato'
+                          : '${catalogue.beacons.length} radiofari caricati',
+                      subtitle: catalogue == null
+                          ? null
+                          : 'File: ${catalogue.sourceFileName}',
+                    ),
+                    _SettingsInfoRow(
+                      icon: Icons.smartphone_outlined,
+                      title:
+                          'Dispositivo: ${controller.deviceDisplayName ?? 'non configurato'}',
+                      subtitle: 'ID tecnico: ${controller.installationId}',
+                    ),
+                    _SettingsActionRow(
+                      icon: Icons.edit_outlined,
+                      title: 'Modifica nome dispositivo',
+                      enabled: !controller.busy,
+                      onTap: () => _editDeviceName(context, controller),
+                    ),
+                    const _SettingsNote(
+                      'Il nuovo TXT viene validato completamente prima del '
+                      'salvataggio. Se contiene errori, l’archivio corrente '
+                      'non viene modificato.',
+                    ),
+                    const SizedBox(height: 6),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: controller.busy || authController.busy
+                            ? null
+                            : () => _downloadCatalogueFromServer(context),
+                        icon: const Icon(Icons.cloud_download_outlined),
+                        label: const Text('Scarica catalogo dal server'),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _SettingsActionRow(
+                      icon: Icons.sync,
+                      title: 'Sostituisci file TXT manualmente',
+                      enabled: !controller.busy,
+                      onTap: () => _importCatalogue(context, controller),
+                    ),
+                    _SettingsActionRow(
+                      icon: Icons.delete_sweep_outlined,
+                      title: 'Azzera lista radiofari',
+                      enabled: !controller.busy,
+                      destructive: true,
+                      onTap: () => _confirmAndClearCatalogue(context),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -1564,6 +1534,150 @@ final class _CatalogueSettingsScreen extends StatelessWidget {
         ),
       );
     },
+  );
+}
+
+final class _SettingsSectionHeader extends StatelessWidget {
+  const _SettingsSectionHeader({required this.icon, required this.title});
+
+  final IconData icon;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        Icon(icon, size: 19, color: scheme.primary),
+        const SizedBox(width: 9),
+        Text(
+          title.toUpperCase(),
+          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+            color: scheme.primary,
+            fontWeight: FontWeight.w800,
+            letterSpacing: .8,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+final class _SettingsSection extends StatelessWidget {
+  const _SettingsSection({
+    required this.icon,
+    required this.title,
+    required this.children,
+  });
+
+  final IconData icon;
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final divider = Theme.of(context).dividerColor.withValues(alpha: .35);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _SettingsSectionHeader(icon: icon, title: title),
+        const SizedBox(height: 8),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface.withValues(alpha: .22),
+            border: Border(
+              top: BorderSide(color: divider),
+              bottom: BorderSide(color: divider),
+            ),
+          ),
+          child: Column(
+            children: [
+              for (var i = 0; i < children.length; i++) ...[
+                children[i],
+                if (i != children.length - 1)
+                  Divider(height: 1, indent: 54, color: divider),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+final class _SettingsInfoRow extends StatelessWidget {
+  const _SettingsInfoRow({
+    required this.icon,
+    required this.title,
+    this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+    dense: true,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+    leading: Icon(icon, size: 22),
+    title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+    subtitle: subtitle == null ? null : Text(subtitle!),
+  );
+}
+
+final class _SettingsActionRow extends StatelessWidget {
+  const _SettingsActionRow({
+    required this.icon,
+    required this.title,
+    required this.onTap,
+    this.subtitle,
+    this.enabled = true,
+    this.destructive = false,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final VoidCallback onTap;
+  final bool enabled;
+  final bool destructive;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final color = destructive ? scheme.error : null;
+    return ListTile(
+      dense: true,
+      enabled: enabled,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      leading: Icon(icon, size: 22, color: color),
+      title: Text(
+        title,
+        style: TextStyle(fontWeight: FontWeight.w700, color: color),
+      ),
+      subtitle: subtitle == null ? null : Text(subtitle!),
+      trailing: const Icon(Icons.chevron_right, size: 21),
+      onTap: enabled ? onTap : null,
+    );
+  }
+}
+
+final class _SettingsNote extends StatelessWidget {
+  const _SettingsNote(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(54, 9, 12, 9),
+    child: Text(
+      text,
+      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+        height: 1.35,
+      ),
+    ),
   );
 }
 

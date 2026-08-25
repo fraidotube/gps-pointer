@@ -158,22 +158,10 @@ final class _RadarProHome extends StatelessWidget {
                                 onTap: onPtp,
                               ),
                               _RadarTile(
-                                icon: Icons.cloud_download_outlined,
-                                title: 'Scarica',
-                                subtitle: 'Postazioni dal server',
-                                onTap: onDownload,
-                              ),
-                              _RadarTile(
                                 icon: Icons.dynamic_feed_outlined,
-                                title: 'Aggiornamenti TLC',
-                                subtitle: 'News e video',
+                                title: 'News & Video',
+                                subtitle: '',
                                 onTap: onUpdates,
-                              ),
-                              _RadarTile(
-                                icon: Icons.bug_report_outlined,
-                                title: 'Debug',
-                                subtitle: 'Log e diagnostica',
-                                onTap: onDebug,
                               ),
                               _RadarTile(
                                 icon: Icons.restaurant_menu,
@@ -239,12 +227,6 @@ final class _RadarProHome extends StatelessWidget {
                   ),
                   _menuItem(
                     sheetContext,
-                    icon: Icons.cloud_download_outlined,
-                    title: 'Scarica dal server',
-                    action: onDownload,
-                  ),
-                  _menuItem(
-                    sheetContext,
                     icon: Icons.radar_outlined,
                     title: 'Radar meteo',
                     action: onWeatherRadar,
@@ -258,7 +240,7 @@ final class _RadarProHome extends StatelessWidget {
                   _menuItem(
                     sheetContext,
                     icon: Icons.dynamic_feed_outlined,
-                    title: 'Aggiornamenti TLC',
+                    title: 'News & Video',
                     action: onUpdates,
                   ),
                   _menuItem(
@@ -273,12 +255,6 @@ final class _RadarProHome extends StatelessWidget {
                     icon: Icons.settings_outlined,
                     title: 'Impostazioni',
                     action: onSettings,
-                  ),
-                  _menuItem(
-                    sheetContext,
-                    icon: Icons.bug_report_outlined,
-                    title: 'Debug',
-                    action: onDebug,
                   ),
                   ListTile(
                     leading: const Icon(Icons.info_outline),
@@ -492,14 +468,19 @@ final class _RadarTile extends StatelessWidget {
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              const SizedBox(height: 3),
-              Text(
-                subtitle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Color(0xFFB2C6D0), fontSize: 9.5),
-              ),
+              if (subtitle.isNotEmpty) ...[
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Color(0xFFB2C6D0),
+                    fontSize: 9.5,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -850,24 +831,10 @@ final class _ClassicHome extends StatelessWidget {
                 ),
                 _ClassicButton(
                   width: tileWidth,
-                  icon: Icons.cloud_download_outlined,
-                  title: 'Scarica',
-                  subtitle: 'Postazioni dal server',
-                  onTap: onDownload,
-                ),
-                _ClassicButton(
-                  width: tileWidth,
                   icon: Icons.dynamic_feed_outlined,
-                  title: 'Aggiornamenti TLC',
-                  subtitle: 'News e video',
+                  title: 'News & Video',
+                  subtitle: '',
                   onTap: onUpdates,
-                ),
-                _ClassicButton(
-                  width: tileWidth,
-                  icon: Icons.bug_report_outlined,
-                  title: 'Debug',
-                  subtitle: 'Log e diagnostica',
-                  onTap: onDebug,
                 ),
                 _ClassicButton(
                   width: tileWidth,
@@ -956,12 +923,6 @@ final class _ClassicHome extends StatelessWidget {
                 ),
                 _classicMenuItem(
                   sheetContext,
-                  icon: Icons.cloud_download_outlined,
-                  title: 'Scarica dal server',
-                  action: onDownload,
-                ),
-                _classicMenuItem(
-                  sheetContext,
                   icon: Icons.radar_outlined,
                   title: 'Radar meteo',
                   action: onWeatherRadar,
@@ -975,7 +936,7 @@ final class _ClassicHome extends StatelessWidget {
                 _classicMenuItem(
                   sheetContext,
                   icon: Icons.dynamic_feed_outlined,
-                  title: 'Aggiornamenti TLC',
+                  title: 'News & Video',
                   action: onUpdates,
                 ),
                 _classicMenuItem(
@@ -990,12 +951,6 @@ final class _ClassicHome extends StatelessWidget {
                   icon: Icons.settings_outlined,
                   title: 'Impostazioni',
                   action: onSettings,
-                ),
-                _classicMenuItem(
-                  sheetContext,
-                  icon: Icons.bug_report_outlined,
-                  title: 'Debug',
-                  action: onDebug,
                 ),
                 ListTile(
                   leading: const Icon(Icons.info_outline),
@@ -1097,14 +1052,16 @@ final class _ClassicButton extends StatelessWidget {
                   fontSize: 14,
                 ),
               ),
-              const SizedBox(height: 4),
-              Text(
-                subtitle,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
+              if (subtitle.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
             ],
           ),
         ),
