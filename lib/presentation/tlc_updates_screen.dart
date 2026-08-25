@@ -64,7 +64,6 @@ final class _TlcUpdatesScreenState extends State<TlcUpdatesScreen> {
     length: 2,
     child: Scaffold(
       appBar: AppBar(
-        title: const Text('Aggiornamenti TLC'),
         actions: [
           IconButton(
             tooltip: 'Aggiorna',

@@ -247,7 +247,7 @@ ThemeData gpsPointerTheme(AppVisualTheme mode) {
       );
 
   final rounded = RoundedRectangleBorder(
-    borderRadius: BorderRadius.circular(18),
+    borderRadius: BorderRadius.circular(10),
     side: const BorderSide(color: border),
   );
 
@@ -276,6 +276,14 @@ ThemeData gpsPointerTheme(AppVisualTheme mode) {
       ),
     ),
     dividerColor: border,
+    dividerTheme: const DividerThemeData(color: border, thickness: 1, space: 1),
+    tabBarTheme: const TabBarThemeData(
+      labelColor: cyan,
+      unselectedLabelColor: muted,
+      indicatorColor: cyanStrong,
+      dividerColor: border,
+      labelStyle: TextStyle(fontWeight: FontWeight.w800, letterSpacing: .4),
+    ),
     iconTheme: const IconThemeData(color: cyan),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
@@ -285,15 +293,15 @@ ThemeData gpsPointerTheme(AppVisualTheme mode) {
       prefixIconColor: cyan,
       suffixIconColor: cyan,
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(color: border),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(color: border),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(color: cyanStrong, width: 1.5),
       ),
     ),
@@ -302,7 +310,7 @@ ThemeData gpsPointerTheme(AppVisualTheme mode) {
         backgroundColor: cyanStrong,
         foregroundColor: const Color(0xFF031016),
         minimumSize: const Size(0, 46),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         textStyle: const TextStyle(fontWeight: FontWeight.w800),
       ),
     ),
@@ -311,7 +319,7 @@ ThemeData gpsPointerTheme(AppVisualTheme mode) {
         foregroundColor: cyan,
         minimumSize: const Size(0, 44),
         side: const BorderSide(color: border),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
@@ -321,12 +329,12 @@ ThemeData gpsPointerTheme(AppVisualTheme mode) {
       backgroundColor: const Color(0xA6132A38),
       selectedColor: const Color(0xFF164B5D),
       side: const BorderSide(color: border),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
     ),
     dialogTheme: DialogThemeData(
       backgroundColor: const Color(0xFF0B1C28),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(14),
         side: const BorderSide(color: border),
       ),
     ),
@@ -342,9 +350,7 @@ ThemeData gpsPointerTheme(AppVisualTheme mode) {
     listTileTheme: const ListTileThemeData(
       iconColor: cyan,
       textColor: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.all(Radius.circular(16)),
-      ),
+      dense: false,
     ),
     iconButtonTheme: IconButtonThemeData(
       style: IconButton.styleFrom(
@@ -513,12 +519,12 @@ final class _ThemeOption extends StatelessWidget {
 
     return InkWell(
       onTap: busy ? null : onTap,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(10),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(color: border, width: selected ? 1.6 : 1),
           gradient: radar
               ? const LinearGradient(
@@ -533,7 +539,7 @@ final class _ThemeOption extends StatelessWidget {
               width: 58,
               height: 58,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(10),
                 color: radar
                     ? const Color(0xFF0A2131)
                     : const Color(0xFF0B1B24),

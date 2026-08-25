@@ -73,17 +73,6 @@ final class _AuthBrand extends StatelessWidget {
           letterSpacing: 2.8,
         ),
       ),
-      SizedBox(height: 8),
-      Text(
-        'GPS Pointer',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 24,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      SizedBox(height: 4),
-      Text('App puntamento GPS', style: TextStyle(color: Color(0xFF9FB6C2))),
     ],
   );
 }
@@ -113,16 +102,18 @@ final class _AuthCompassLogoPainter extends CustomPainter {
     }
 
     final whiteNeedle = Path()
-      ..moveTo(center.dx - 2, center.dy + 4)
-      ..lineTo(center.dx - size.width * .20, center.dy + size.height * .22)
-      ..lineTo(center.dx + 3, center.dy - 3)
+      ..moveTo(size.width * .18, size.height * .82)
+      ..lineTo(size.width * .46, size.height * .49)
+      ..lineTo(size.width * .57, size.height * .43)
+      ..lineTo(size.width * .38, size.height * .66)
       ..close();
     canvas.drawPath(whiteNeedle, Paint()..color = Colors.white);
 
     final orangeNeedle = Path()
-      ..moveTo(center.dx + 2, center.dy - 4)
-      ..lineTo(center.dx + size.width * .20, center.dy - size.height * .25)
-      ..lineTo(center.dx - 3, center.dy + 3)
+      ..moveTo(size.width * .82, size.height * .17)
+      ..lineTo(size.width * .55, size.height * .52)
+      ..lineTo(size.width * .43, size.height * .57)
+      ..lineTo(size.width * .62, size.height * .34)
       ..close();
     canvas.drawPath(orangeNeedle, Paint()..color = const Color(0xFFFFA026));
 

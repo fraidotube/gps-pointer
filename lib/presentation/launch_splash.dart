@@ -175,18 +175,6 @@ final class _RadarProSplash extends StatelessWidget {
                       ),
                       child: const _ProSplashWordmark(),
                     ),
-                    const SizedBox(height: 18),
-                    const Text(
-                      'PUNTA. MISURA. CONNETTI.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: .8,
-                        shadows: [Shadow(color: Colors.black87, blurRadius: 8)],
-                      ),
-                    ),
                     const Spacer(),
                     AnimatedBuilder(
                       animation: animation,
@@ -276,17 +264,21 @@ final class _ProCompassLogoPainter extends CustomPainter {
       );
     }
 
+    // Needle geometry intentionally mirrors the original launcher mark:
+    // a long white tail to SW and a compact orange head to NE.
     final whiteNeedle = Path()
-      ..moveTo(size.width * .23, size.height * .79)
-      ..lineTo(size.width * .50, size.height * .48)
-      ..lineTo(size.width * .44, size.height * .63)
+      ..moveTo(size.width * .18, size.height * .82)
+      ..lineTo(size.width * .46, size.height * .49)
+      ..lineTo(size.width * .57, size.height * .43)
+      ..lineTo(size.width * .38, size.height * .66)
       ..close();
     canvas.drawPath(whiteNeedle, Paint()..color = Colors.white);
 
     final orangeNeedle = Path()
-      ..moveTo(size.width * .45, size.height * .55)
-      ..lineTo(size.width * .82, size.height * .18)
-      ..lineTo(size.width * .61, size.height * .61)
+      ..moveTo(size.width * .82, size.height * .17)
+      ..lineTo(size.width * .55, size.height * .52)
+      ..lineTo(size.width * .43, size.height * .57)
+      ..lineTo(size.width * .62, size.height * .34)
       ..close();
     canvas.drawPath(orangeNeedle, Paint()..color = const Color(0xFFFFA026));
 
