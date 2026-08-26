@@ -43,10 +43,13 @@ final class _AuthBrand extends StatelessWidget {
   const _AuthBrand();
 
   @override
-  Widget build(BuildContext context) => const Image(
-    image: AssetImage('asset/gps_pointer_wordmark.png'),
-    width: 110,
-    filterQuality: FilterQuality.high,
+  Widget build(BuildContext context) => const Align(
+    alignment: Alignment.center,
+    child: Image(
+      image: AssetImage('asset/gps_pointer_wordmark.png'),
+      width: 92,
+      filterQuality: FilterQuality.high,
+    ),
   );
 }
 

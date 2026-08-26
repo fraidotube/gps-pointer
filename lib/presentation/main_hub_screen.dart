@@ -377,32 +377,15 @@ final class _MiniCompassMark extends StatelessWidget {
   const _MiniCompassMark();
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-    width: 28,
-    height: 28,
-    child: CustomPaint(painter: _MiniCompassPainter()),
+  Widget build(BuildContext context) => const SizedBox(
+    width: 30,
+    height: 30,
+    child: Image(
+      image: AssetImage('asset/gps_pointer_mini.png'),
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.high,
+    ),
   );
-}
-
-final class _MiniCompassPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final ring = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.8
-      ..color = const Color(0xFFEAF7FA);
-    canvas.drawCircle(center, size.width * .38, ring);
-    final arrow = Path()
-      ..moveTo(size.width * .24, size.height * .72)
-      ..lineTo(size.width * .73, size.height * .23)
-      ..lineTo(size.width * .62, size.height * .59)
-      ..close();
-    canvas.drawPath(arrow, Paint()..color = const Color(0xFFFFA026));
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 final class _RadarTile extends StatelessWidget {
