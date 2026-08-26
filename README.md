@@ -1,286 +1,412 @@
 # GPS Pointer
 
-GPS Pointer è un'app Android sviluppata in Flutter per supportare attività sul campo legate a orientamento, puntamento, **Postazioni Radio**, analisi preliminare dei collegamenti, profili altimetrici, meteo operativo, rapporti d'intervento e servizi condivisi tramite il server GPS Pointer.
+GPS Pointer è un'app Android sviluppata in Flutter per supportare attività tecniche sul campo legate a Postazioni Radio, orientamento, analisi preliminare dei collegamenti radio, profili altimetrici, meteo operativo, rapporti d'intervento e servizi condivisi con GPS Pointer Server.
 
-Questa documentazione descrive la **release GPS Pointer 2.6.3**, build **1.0.0+63**, ed è stata verificata sul codice reale della build 63.
+La release documentata è **GPS Pointer 2.7.0**, versione Android/Flutter **2.7.0+70**.
+
+Il progetto è pensato per un utilizzo operativo da smartphone: alcune funzioni lavorano interamente sul dispositivo, altre usano servizi Internet esterni, mentre i dati che devono essere condivisi tra utenti o centralizzati vengono gestiti tramite GPS Pointer Server.
 
 > **Azimuth e AR**
 >
-> Le funzioni Azimuth e AR sono **sperimentali**, ancora in sviluppo e soggette a prove comparative sul campo. Non sono strumenti certificati e non sostituiscono strumentazione professionale.
+> Le funzioni **Azimuth** e **AR** sono sperimentali, ancora in sviluppo e soggette a test comparativi sul campo. Non sono strumenti certificati, non sono da considerarsi definitive e non sostituiscono strumentazione professionale.
 
----
+## Modello generale
+
+GPS Pointer non è soltanto un visualizzatore di coordinate. L'app riunisce in un unico ambiente strumenti che, durante un intervento, richiederebbero normalmente applicazioni o procedure separate.
+
+Il modello operativo può essere sintetizzato così:
+
+```text
+Tecnico sul campo
+       |
+       v
+GPS Pointer Android
+       |
+       +-- dati e strumenti locali
+       |   - posizione e sensori
+       |   - calcoli geometrici
+       |   - simulazioni
+       |   - archivio locale
+       |   - PDF e condivisione
+       |
+       +-- servizi Internet
+       |   - altimetria
+       |   - meteo
+       |   - radar precipitazioni
+       |   - mappe e OpenStreetMap
+       |   - GitHub Releases per l'updater
+       |
+       v
+HTTPS / API autenticata
+       |
+       v
+GPS Pointer Server
+       |
+       +-- catalogo condiviso delle Postazioni Radio
+       +-- autenticazione e dispositivi
+       +-- simulazioni condivise
+       +-- Rapporti d'intervento
+       +-- database Comida
+       +-- feed News & Video
+```
+
+Questa separazione permette all'app di continuare a gestire localmente le attività che non richiedono condivisione, mantenendo sul server ciò che deve essere comune a più installazioni o amministrato centralmente.
+
+## Home e organizzazione dell'app
+
+La Home raccoglie le funzioni principali senza esporre direttamente gli strumenti diagnostici o di manutenzione.
+
+Le aree operative correnti sono:
+
+- **Postazioni Radio**
+- **Copertura**
+- **Punto Punto**
+- **News & Video**
+- **Comida**
+- **Radar meteo**
+- **Rapporto d'intervento**
+- **Impostazioni**
+
+L'interfaccia può essere visualizzata secondo due temi, **Semplice** e **Pro**. La scelta modifica la presentazione grafica della Home ma non cambia il significato delle funzioni disponibili.
+
+Gli strumenti di Debug e diagnostica rimangono separati dalle normali attività operative e sono raggiungibili dalle Impostazioni.
 
 ## Postazioni Radio
 
-La terminologia corrente dell'interfaccia è **Postazioni Radio**.
+La terminologia pubblica dell'app è **Postazioni Radio**. Nel codice possono ancora comparire identificatori storici contenenti termini come `radiofaro`, `radio_beacon` o equivalenti; si tratta di nomenclatura tecnica interna mantenuta per compatibilità con componenti precedenti.
 
-Dalla Home e dal menu sono disponibili funzioni dedicate a:
+Il catalogo raccoglie le coordinate e i dati necessari alle funzioni che lavorano rispetto a una postazione nota. Dall'app è possibile consultare e ricercare le Postazioni Radio, usarle nelle simulazioni di Copertura e selezionarle negli strumenti di puntamento.
 
-- consultazione e ricerca del catalogo;
-- puntamento verso una postazione;
-- download delle postazioni dal server;
-- inserimento di una nuova postazione;
-- utilizzo delle postazioni nelle funzioni di Copertura.
+Il catalogo locale può essere aggiornato dal GPS Pointer Server. È inoltre disponibile il flusso per aggiungere una nuova Postazione Radio quando previsto dall'interfaccia.
 
-Nel codice sono ancora presenti alcuni identificatori e messaggi tecnici storici con la parola “radiofari”; il README usa invece la terminologia corrente mostrata nell'interfaccia: **Postazioni Radio**.
+La disponibilità locale del catalogo evita di rendere ogni consultazione dipendente da una richiesta di rete; il server rimane invece il punto di riferimento per la distribuzione dei dati condivisi.
 
----
+## Puntamento
 
-## Puntamento, Azimuth, AR e Tilt
+Il requisito concettuale del puntamento è semplice: il tecnico può trovarsi sul posto senza conoscere visivamente dove si trovi la Postazione Radio da raggiungere.
 
-Il progetto mantiene separati i motori di puntamento e gli strumenti sperimentali.
+A partire dalle coordinate del punto di osservazione e della Postazione Radio, GPS Pointer determina la direzione geometrica del target e utilizza i sensori disponibili sul dispositivo per rappresentare l'orientamento.
 
-Sono presenti:
+Il sistema comprende componenti distinti per posizione, orientamento, calcolo geografico e interfaccia di guida. La separazione tra questi livelli consente di confrontare soluzioni differenti senza alterare automaticamente il comportamento dei componenti storici.
 
-- `PointingEngineV2`, motore storico protetto;
-- motori V3 sperimentali;
-- stabilizzazione AR dedicata;
-- motore Tilt separato.
+### Azimuth
 
-Questa separazione permette di sviluppare e confrontare nuove soluzioni senza sostituire automaticamente il comportamento storico.
+Azimuth rappresenta la parte sperimentale dedicata alla direzione orizzontale verso il target.
 
-Azimuth e AR rimangono strumenti sperimentali e di supporto.
+Nel progetto coesistono il motore storico protetto `PointingEngineV2` e componenti sperimentali sviluppati per attività di diagnostica e confronto. La presenza di questi componenti non costituisce una validazione dell'algoritmo sperimentale.
 
----
+Le prove sul campo vengono utilizzate per raccogliere dati reali dai sensori, confrontare dispositivi e individuare eventuali cause di scostamento. Fino al completamento di tale processo, i risultati di Azimuth devono essere interpretati esclusivamente come supporto sperimentale.
+
+### AR
+
+La modalità AR utilizza la fotocamera e i dati di orientamento per sovrapporre indicazioni alla scena reale.
+
+Lo scopo funzionale è guidare il tecnico verso la direzione della Postazione Radio anche quando il target non sia già riconoscibile a vista. Anche questa funzione rimane sperimentale: accuratezza e stabilità dipendono dai sensori, dall'ambiente e dal comportamento del dispositivo.
+
+Il progetto mantiene separati i componenti AR dalla logica storica di puntamento proprio per poter evolvere e testare il sistema senza attribuire automaticamente ai nuovi algoritmi lo stesso stato delle funzioni consolidate.
+
+### Tilt
+
+Il **Tilt** è gestito come calcolo distinto dall'Azimuth.
+
+Serve a descrivere la componente verticale teorica del collegamento in funzione delle quote, delle altezze considerate e della geometria tra i punti. È utilizzato nelle analisi di Copertura e Punto Punto.
 
 ## Copertura
 
-La schermata **Copertura** permette di selezionare una Postazione Radio e un punto di partenza.
+La funzione **Copertura** analizza il collegamento tra una posizione di origine e una Postazione Radio selezionata dal catalogo.
 
-Il punto di partenza può essere definito tramite:
+Il punto di partenza può essere ricavato dalla posizione attuale oppure definito tramite coordinate o informazioni provenienti da un link Maps, secondo quanto disponibile nell'interfaccia.
 
-- posizione attuale;
-- coordinate;
-- link Maps.
+Una simulazione può includere:
 
-La schermata comprende:
-
-- parametri del collegamento;
-- calcolo Copertura;
+- distanza e geometria del collegamento;
+- parametri associati ai due estremi;
 - profilo altimetrico;
-- terreno;
+- andamento del terreno;
 - linea ottica;
 - prima zona di Fresnel;
-- mappa del collegamento;
-- tilt teorico;
-- salvataggio;
-- condivisione;
-- invio al server.
+- rappresentazione cartografica;
+- Tilt teorico;
+- salvataggio nell'archivio locale;
+- esportazione e condivisione;
+- invio al GPS Pointer Server.
 
-È inoltre presente il comando per calcolare i **4 più vicini** quando richiesto dall'utente.
+È disponibile anche la ricerca delle Postazioni Radio più vicine quando richiesta dall'utente, così da confrontare rapidamente più destinazioni potenzialmente utilizzabili.
 
----
+Il risultato deve essere considerato un supporto alla progettazione e al sopralluogo: dati altimetrici, posizione, modello del terreno e parametri inseriti incidono direttamente sulla qualità dell'analisi.
 
 ## Punto Punto (PTP)
 
-La funzione **Punto Punto • PTP** permette di analizzare un collegamento tra Punto A e Punto B.
+**Punto Punto (PTP)** estende lo stesso approccio a un collegamento tra due estremi liberamente definiti.
 
-Per ciascun punto sono disponibili:
+Punto A e Punto B possono essere impostati usando posizione attuale, coordinate o dati ricavati da un link Maps. Nessuno dei due estremi deve necessariamente coincidere con una Postazione Radio presente nel catalogo.
 
-- posizione attuale;
-- coordinate;
-- link Maps.
+Il calcolo comprende geometria, distanza, profilo altimetrico, terreno, linea ottica, prima zona di Fresnel, mappa e Tilt tra i due punti.
 
-Il risultato comprende:
+Le simulazioni PTP possono essere archiviate localmente, condivise, esportate e, quando previsto, inviate al server nello stesso ecosistema utilizzato dalle simulazioni di Copertura.
 
-- distanza e geometria del collegamento;
-- profilo altimetrico;
-- terreno;
-- linea ottica;
-- prima zona di Fresnel;
-- mappa;
-- tilt A → B;
-- salvataggio;
-- condivisione;
-- invio al server.
+## Profili altimetrici, terreno, linea ottica e Fresnel
 
----
+Le analisi radio utilizzano un profilo del terreno campionato lungo il percorso tra i due estremi.
 
-## Meteo e radar
+Le quote possono essere ottenute mediante i provider altimetrici integrati nell'app. Il profilo viene quindi utilizzato per costruire una rappresentazione coerente di terreno, linea ottica e prima zona di Fresnel.
 
-La build 63 usa servizi distinti per funzioni diverse:
+Questi elementi sono differenti e non vanno confusi:
 
-- **MET Norway** per le previsioni meteo;
+- il **profilo altimetrico** descrive la quota del terreno lungo il percorso;
+- la **linea ottica** rappresenta la congiungente geometrica tra le quote considerate ai due estremi;
+- la **prima zona di Fresnel** aggiunge il volume teorico rilevante attorno alla linea di collegamento;
+- il **Tilt** descrive l'angolo verticale teorico tra gli estremi.
+
+Le analisi dipendono dalla qualità dei dati altimetrici disponibili e dalle altezze inserite. GPS Pointer non sostituisce un rilievo topografico o radioelettrico certificato.
+
+## Simulazioni, archivio e formato `.gpspsim`
+
+Le simulazioni possono essere conservate localmente per essere riaperte, revisionate o condivise in un secondo momento.
+
+GPS Pointer dispone di servizi separati per importazione, esportazione, generazione PDF e scambio dei dati.
+
+Il formato di interscambio dell'app è **`.gpspsim`**. Il documento contiene una struttura JSON versionata con i dati della simulazione e informazioni minime sulla sorgente del file. Durante l'importazione vengono verificati schema, versione e presenza dei dati richiesti.
+
+L'associazione del formato con Android permette inoltre di aprire un file compatibile e trasferirlo al flusso di revisione dell'app.
+
+Quando una simulazione viene inviata al GPS Pointer Server, lo stesso modello viene serializzato per la trasmissione autenticata. L'archivio locale e quello server svolgono quindi ruoli complementari: il primo è immediatamente disponibile sul dispositivo, il secondo rende il dato consultabile e gestibile in un contesto condiviso.
+
+## Radar meteo e servizi meteo
+
+Il modulo **Radar meteo** riunisce informazioni utili durante le attività esterne.
+
+La schermata combina previsioni per il punto selezionato e visualizzazione dei frame radar delle precipitazioni. Le integrazioni utilizzate dal progetto hanno scopi distinti:
+
+- **MET Norway** per le informazioni meteo;
 - **RainViewer** per il radar precipitazioni;
-- **Open-Meteo** per quote e dati altimetrici utilizzati nelle funzioni che ne hanno bisogno.
+- **Open-Meteo** per dati altimetrici e servizi di elevazione impiegati nelle funzioni che ne hanno bisogno.
 
-La schermata **Radar meteo** mostra i frame radar disponibili e le previsioni per il punto selezionato.
+La Home può mostrare anche informazioni meteo sintetiche quando posizione e servizio meteo sono disponibili.
 
----
+I dati provengono da servizi esterni e possono essere temporaneamente non disponibili, ritardati o incompleti. L'app non modifica né certifica le informazioni ricevute dalle sorgenti.
+
+## News & Video
+
+**News & Video** è il punto di accesso dell'app ai contenuti TLC aggregati dal GPS Pointer Server.
+
+L'app non interroga direttamente ogni singola sorgente editoriale o video. Effettua invece una richiesta autenticata al feed centralizzato del server, che restituisce collezioni distinte di news, video ed eventuali avvisi di raccolta.
+
+Questa architettura consente di mantenere lato server la logica di acquisizione, normalizzazione e aggiornamento delle sorgenti, mentre il client Android rimane concentrato sulla consultazione.
+
+I contenuti continuano ad appartenere alle rispettive fonti: GPS Pointer Server ne aggrega i riferimenti necessari alla visualizzazione e all'apertura dei collegamenti esterni.
 
 ## Rapporti d'intervento
 
-GPS Pointer comprende una sezione dedicata ai **Rapporti d’intervento**.
+La sezione **Rapporto d'intervento** serve a compilare e conservare la documentazione relativa a un'attività tecnica.
 
-Nel progetto sono presenti:
+Il progetto comprende modello dati, gestione dell'archivio locale, firme, generazione PDF e condivisione del documento.
 
-- modello dati del rapporto;
-- schermate di gestione;
-- archivio locale;
-- firme;
-- generazione PDF;
-- condivisione;
-- integrazione con il server.
+Il PDF viene costruito da un servizio applicativo dedicato e può essere utilizzato indipendentemente dalla disponibilità del server una volta generato localmente.
 
-La generazione del PDF è gestita da un servizio applicativo dedicato.
+Quando l'utente sceglie di inviare il rapporto al GPS Pointer Server, l'app trasmette in modo autenticato i metadati del rapporto e il relativo PDF. Il server costituisce così l'archivio centralizzato dei rapporti condivisi, senza eliminare l'utilità della copia locale sul dispositivo.
 
----
+## Comida
 
-# Comida
+**Comida** è integrato in GPS Pointer come strumento per trovare, consultare e condividere locali utili durante l'attività sul territorio.
 
-**Comida** è il modulo introdotto nella release 2.5 per trovare, consultare e condividere locali.
+Non è un'app separata: utilizza posizione, accesso server e servizi esterni già presenti nell'ecosistema GPS Pointer.
 
-La Home Comida contiene:
+### Cerca vicino a me
 
-- **Cerca vicino a me**
-- **Consigliati**
-- **Aggiungi locale**
+La ricerca parte dalla posizione corrente e utilizza un raggio selezionabile. I risultati provenienti dal database GPS Pointer vengono integrati con i locali ottenuti da OpenStreetMap tramite Overpass.
 
-## Cerca vicino a me
+La ricerca può essere filtrata per testo, tipologia e cucina.
 
-La ricerca usa la posizione corrente e un raggio configurabile:
+Quando i dati sono disponibili, una scheda può proporre azioni contestuali come:
 
-- 5 km
-- 10 km
-- 20 km
-- 30 km
-- 50 km
+- ottenere indicazioni;
+- chiamare il locale;
+- aprire il sito;
+- cercare il locale su Google;
+- modificare un record già presente nel database GPS Pointer;
+- aggiungere al database condiviso un risultato proveniente da OpenStreetMap.
 
-Il raggio iniziale è **10 km**.
+La ricerca Google viene aperta esternamente; GPS Pointer non esegue scraping dei risultati.
 
-I locali presenti nel database GPS Pointer vengono mostrati prima dei risultati OpenStreetMap.
+### Database GPS Pointer
 
-Sono disponibili filtri per:
+I locali curati attraverso Comida vengono conservati sul GPS Pointer Server.
 
-- testo;
-- tipologia;
-- cucina.
+Un record può comprendere nome, tipologia, cucina, indirizzo, contatti, sito web, indicazione di prezzo, orario, descrizione, coordinate e bollino.
 
-## OpenStreetMap e Overpass
+La distinzione tra risultati server e risultati OpenStreetMap permette di riconoscere i locali già presenti nel database condiviso e quelli ottenuti soltanto dalla sorgente esterna.
 
-Comida usa OpenStreetMap tramite Overpass per i locali esterni.
+### Consigliati
 
-La build 63 contiene fallback sequenziale fra:
+La sezione **Consigliati** utilizza il database GPS Pointer e ordina i risultati in relazione alla posizione corrente.
 
-1. `overpass-api.de`
-2. `overpass.private.coffee`
-3. `maps.mail.ru`
+In questo contesto la ricerca non è limitata allo stesso raggio utilizzato da "Cerca vicino a me", così da poter mostrare anche locali selezionati che si trovano più lontano.
 
-Il servizio include inoltre cache temporanea, timeout e cooldown dopo il fallimento degli endpoint.
+### Aggiunta e modifica
 
-I dati esterni vengono mostrati solo quando realmente disponibili.
+Un locale può essere creato partendo dalla posizione corrente, da una ricerca per nome o indirizzo, da un link Maps oppure da coordinate inserite manualmente.
 
-## Database GPS Pointer
+Quando il punto di partenza è un risultato OpenStreetMap, il form viene precompilato con i dati disponibili e conserva il riferimento alla sorgente OSM. Dopo il salvataggio, il locale diventa parte del database condiviso.
 
-I locali curati dalla community vengono salvati sul server GPS Pointer.
+I record già presenti sul server possono essere modificati dall'app con richieste autenticate.
 
-Un record Comida può comprendere:
+L'orario del locale è volutamente semplice e usa i campi Apertura e Chiusura. Il selettore corrente lavora su ore da 00 a 23 e minuti a intervalli di 15 minuti.
 
-- nome;
-- tipologia;
-- cucina;
-- indirizzo;
-- telefono;
-- sito web;
-- prezzo;
-- orario;
-- descrizione;
-- coordinate;
-- bollino.
+### Bollini
 
-## Bollini
-
-La build 63 supporta:
+Comida supporta quattro classificazioni grafiche:
 
 - **GOLD**
 - **SILVER**
 - **BRONZE**
 - **SCONSIGLIATO**
 
-## Consigliati
+Il bollino è un attributo del record Comida e viene distribuito insieme agli altri dati del locale.
 
-La sezione **Consigliati** usa soltanto il database GPS Pointer.
+### OpenStreetMap e Overpass
 
-La richiesta utilizza `all_distances=true`: non applica quindi il limite del raggio della ricerca normale.
+I risultati esterni vengono ottenuti da **OpenStreetMap** attraverso Overpass.
 
-I risultati vengono ordinati in base alla distanza dalla posizione corrente.
+L'implementazione include più endpoint di fallback, timeout, cache temporanea e meccanismi di cooldown in caso di errore. Se i dati esterni non sono disponibili, l'app non li sostituisce con risultati inventati.
 
-## Aggiungi locale
+## GPS Pointer Server
 
-La posizione può essere definita tramite:
+GPS Pointer Server è un componente separato dall'app Android e viene mantenuto in un repository dedicato.
 
-- **QUI DOVE SONO**
-- ricerca per nome locale / indirizzo / località;
-- link Google Maps;
-- coordinate manuali.
+La sua funzione non è eseguire sul server tutti i calcoli dell'app, ma fornire un livello comune per autenticazione, dati condivisi e servizi centralizzati.
 
-Il form comprende anche:
+Il rapporto tra i due componenti è quindi:
 
-- tipologia guidata;
-- cucina multipla;
-- bollino;
-- telefono;
-- sito;
-- prezzo medio a persona;
-- apertura;
-- chiusura;
-- descrizione / nota.
+```text
+GPS Pointer Android
+        |
+        | HTTPS
+        | autenticazione Bearer
+        v
+GPS Pointer Server
+        |
+        +-- account e dispositivi autorizzati
+        +-- catalogo Postazioni Radio
+        +-- simulazioni condivise
+        +-- Rapporti d'intervento
+        +-- Comida
+        +-- News & Video
+```
 
-L'orario è volutamente semplice: **un unico orario del locale**, con Apertura e Chiusura; può essere compilato anche solo uno dei due campi.
+### Autenticazione e dispositivi
 
-## Da OSM a Comida
+L'accesso ai servizi server parte da username e password.
 
-Un locale proveniente da OpenStreetMap può essere selezionato con **AGGIUNGI A COMIDA**.
+Durante il login l'app invia anche un identificativo dell'installazione, il nome del dispositivo e la versione applicativa. Il server restituisce i dati dell'utente insieme a token di accesso e refresh.
 
-L'app apre il form con i dati disponibili e conserva il riferimento sorgente OSM (`source_ref`).
+Le chiamate che richiedono autenticazione usano il token Bearer. Quando possibile, il client tenta il refresh della sessione prima di richiedere un nuovo login.
 
-Il locale viene quindi inviato al server GPS Pointer e diventa parte del database condiviso.
+Il modello è legato anche al dispositivo: una sessione può diventare non valida se il dispositivo viene revocato o se il refresh token non è più utilizzabile.
 
-## Modifica di un locale
+### Accesso rapido e biometria
 
-Un locale già presente nel database GPS Pointer può essere modificato direttamente dall'app.
+L'app può abilitare uno sblocco rapido tramite i meccanismi biometrici o di autenticazione locale supportati da Android.
 
-La build 63 usa:
+Quando questa opzione è attiva, il refresh token e le informazioni strettamente necessarie alla sessione vengono conservati tramite `FlutterSecureStorage`. Lo sblocco locale non sostituisce l'autenticazione server: dopo il riconoscimento del dispositivo viene comunque utilizzato il token salvato per ottenere una sessione valida.
 
-- `POST` per creazione/promozione;
-- `PATCH` per aggiornamento;
-- autenticazione Bearer con il token dell'app;
-- un tentativo di refresh del token e una sola ripetizione in caso di `401`.
+Se il token non è più disponibile, è scaduto o è stato revocato, GPS Pointer torna alla normale autenticazione con password.
 
-La modifica viene salvata sul server e diventa disponibile agli altri utenti al successivo aggiornamento dei dati.
+Il logout locale viene completato anche in assenza di connettività, cancellando i dati della sessione memorizzati sul dispositivo.
 
-## Azioni rapide
+### Dati locali e dati condivisi
 
-Quando i dati sono disponibili, le schede possono offrire:
+Non tutto ciò che viene creato nell'app deve necessariamente essere inviato al server.
 
-- **INDICAZIONI**
-- **CHIAMA**
-- **SITO**
-- **CERCA SU GOOGLE**
-- **MODIFICA**
-- **AGGIUNGI A COMIDA**
+In termini funzionali:
 
-La ricerca Google viene aperta esternamente: GPS Pointer non esegue scraping dei risultati Google.
+| Area | Locale sul dispositivo | Condivisione tramite server |
+| --- | --- | --- |
+| Postazioni Radio | catalogo utilizzabile dall'app | distribuzione/aggiornamento catalogo |
+| Simulazioni | archivio, import/export, PDF | archivio condiviso |
+| Rapporti | archivio e PDF | metadati e PDF centralizzati |
+| Comida | consultazione e interazione client | database condiviso dei locali |
+| News & Video | visualizzazione client | raccolta e normalizzazione feed |
+| Meteo/radar | elaborazione e presentazione client | non costituisce archivio server GPS Pointer |
 
----
+La presenza di una funzione server non implica che il corrispondente dato locale venga sempre sincronizzato automaticamente: l'invio avviene nei flussi previsti dall'interfaccia.
 
-# API Comida usate dall'app
+## Aggiornamento automatico dell'app
 
-La build 63 contiene chiamate verso:
+GPS Pointer include un updater Android dedicato.
 
-- `GET /api/v1/comida/restaurants`
-- `POST /api/v1/comida/restaurants`
-- `PATCH /api/v1/comida/restaurants/{id}`
-- `GET /api/v1/comida/geocode`
-- `POST /api/v1/comida/resolve-map-link`
+Il controllo utilizza la **Latest Release** del repository GitHub dell'app. La release deve contenere l'asset `gps-pointer-release.json`, che descrive versione, build, nome dell'APK e hash SHA-256 atteso.
 
-Le scritture sono autenticate.
+Il flusso è:
 
----
+```text
+GPS Pointer
+    |
+    +--> GitHub API: Latest Release
+    |
+    +--> gps-pointer-release.json
+    |
+    +--> confronto build locale/remota
+    |
+    +--> download APK
+    |
+    +--> verifica SHA-256
+    |
+    +--> installazione tramite Android
+```
 
-# Struttura del progetto
+Un aggiornamento viene proposto solo quando il build number remoto è superiore a quello installato.
 
-La struttura principale verificata della build 63 è:
+Prima dell'installazione l'APK scaricato viene verificato calcolando l'hash SHA-256 e confrontandolo con quello dichiarato nel manifest della release. Se il controllo non coincide, il file viene eliminato e l'aggiornamento viene interrotto.
+
+La numerazione corrente segue il formato:
+
+```text
+2.7.0+70
+```
+
+`2.7.0` identifica la versione applicativa; `70` è il build number tecnico usato anche dal meccanismo di confronto dell'updater.
+
+## Impostazioni
+
+La sezione Impostazioni raccoglie configurazioni e strumenti che non devono occupare la Home principale.
+
+Le aree comprendono gestione dell'account, aspetto, aggiornamenti, diagnostica, file di simulazione e archivio delle Postazioni Radio.
+
+### Aspetto
+
+L'utente può scegliere tra i temi:
+
+- **Semplice**
+- **Pro**
+
+La selezione cambia la presentazione della Home mantenendo le stesse funzioni operative.
+
+### Catalogo
+
+Le impostazioni includono gli strumenti dedicati all'archivio delle Postazioni Radio, compreso l'aggiornamento dal server.
+
+### File di simulazione
+
+Le opzioni legate ai file gestiscono l'associazione e i flussi necessari ad aprire o importare documenti `.gpspsim`.
+
+### Aggiornamenti
+
+La sezione Aggiornamenti espone il controllo della versione e il flusso dell'updater descritto in precedenza.
+
+## Debug e diagnostica
+
+GPS Pointer contiene strumenti diagnostici separati dall'uso normale.
+
+Sono destinati alla raccolta di informazioni durante sviluppo, test e analisi dei sensori. Tra i componenti presenti nel progetto figurano log diagnostici, schermate dedicate alla bussola e strumenti di laboratorio per i motori sperimentali.
+
+Questa separazione è importante soprattutto per Azimuth e AR: una schermata diagnostica può mostrare dati o algoritmi in prova senza che tali risultati diventino automaticamente parte del comportamento operativo consolidato.
+
+I log di diagnostica hanno lo scopo di rendere confrontabili prove eseguite su dispositivi e condizioni differenti; non rappresentano una certificazione della precisione del sensore o dell'algoritmo.
+
+## Architettura del progetto Android
+
+Il codice Flutter è organizzato in quattro aree principali:
 
 ```text
 lib/
@@ -290,70 +416,83 @@ lib/
 └── presentation/
 ```
 
-## `application/`
+### `application/`
 
-Contiene controller e servizi applicativi, tra cui autenticazione, catalogo, Comida, posizione, meteo e rapporti.
+Coordina i casi d'uso dell'app e i servizi che collegano interfaccia, dominio e integrazioni.
 
-## `core/`
+Comprende, tra gli altri, autenticazione, updater, catalogo, Comida, posizione, orientamento, meteo, feed News & Video, simulazioni, rapporti, esportazione e invio al server.
 
-Contiene modelli e logica centrale: dominio, motori geografici, puntamento, Tilt, AR, profili radio, simulazioni e modelli dei rapporti.
+### `core/`
 
-## `infrastructure/`
+Contiene modelli e logica centrale indipendente dall'interfaccia.
 
-Contiene implementazioni di persistenza, integrazioni e accesso ai dati.
+Qui risiedono il dominio delle Postazioni Radio, i modelli delle simulazioni, i calcoli geografici, i componenti di puntamento, AR, Tilt e la logica necessaria ai profili radio.
 
-## `presentation/`
+### `infrastructure/`
 
-Contiene le schermate e i componenti dell'interfaccia, fra cui Home, Postazioni Radio, Copertura, PTP, Comida, Radar meteo, Rapporti, Impostazioni, Debug, AR e Tilt.
+Implementa persistenza e integrazioni legate alla piattaforma o a servizi specifici.
 
----
+Sono presenti repository JSON locali, provider di posizione, provider altimetrici, associazione file e componenti Android necessari all'installazione degli aggiornamenti.
 
-# Home e temi
+### `presentation/`
 
-La build 63 contiene due presentazioni della Home:
+Contiene schermate e widget dell'interfaccia.
 
-- una variante radar/pro;
-- una variante classica/semplice.
+Fra le schermate correnti figurano Home, Postazioni Radio, Copertura, Punto Punto, Comida, Radar meteo, Rapporti d'intervento, Impostazioni, autenticazione, simulazioni, Tilt, puntamento e strumenti diagnostici.
 
-Le funzioni operative principali sono rese disponibili da entrambe.
+## Dipendenze esterne e servizi
 
----
+GPS Pointer utilizza servizi esterni differenti a seconda della funzione.
 
-# Server GPS Pointer
+Quelli esplicitamente integrati nel progetto comprendono:
 
-Il server GPS Pointer è mantenuto in un repository separato e fornisce servizi condivisi all'app.
+- **Open-Meteo**, per elevazione e profili altimetrici;
+- **MET Norway**, per informazioni meteo;
+- **RainViewer**, per radar precipitazioni;
+- **OpenStreetMap / Overpass**, per i locali esterni di Comida;
+- **Google Maps**, tramite SDK Android per la componente cartografica dell'app;
+- **GitHub Releases**, per distribuzione e aggiornamento dell'APK.
 
-Repository server:
+Il GPS Pointer Server può a sua volta utilizzare sorgenti esterne per costruire il feed News & Video. Tale raccolta è mantenuta lato server, non nel client Android.
 
-`https://github.com/fraidotube/gps-pointer-server`
+La disponibilità di un servizio terzo non è sotto il controllo di GPS Pointer. Timeout, limiti, indisponibilità temporanee o variazioni delle API possono quindi influire sulle funzioni che ne dipendono.
 
-Repository app:
+## Sicurezza e privacy
 
-`https://github.com/fraidotube/gps-pointer`
+La sicurezza applicativa è costruita attorno a connessioni HTTPS verso GPS Pointer Server, token di sessione e archiviazione locale sicura dei dati necessari all'accesso rapido.
 
----
+Le password non vengono utilizzate come meccanismo di sblocco rapido locale: quando l'utente abilita questa funzione, il client conserva il refresh token nel secure storage e richiede l'autenticazione Android prima di riutilizzarlo.
 
-# Versione documentata
+Le chiamate server che richiedono autorizzazione utilizzano token Bearer. Le sessioni possono essere invalidate e i dispositivi possono essere revocati lato server.
 
-**GPS Pointer 2.6.3**
+Questo README non documenta password, token reali, chiavi, certificati, percorsi di deployment o dettagli dell'infrastruttura privata.
 
-Build Flutter:
+GPS Pointer utilizza inoltre posizione, fotocamera e sensori del dispositivo per le funzioni che ne hanno bisogno. I relativi permessi sono richiesti nel contesto operativo previsto da Android.
 
-**1.0.0+63**
+## Limiti operativi
 
----
+GPS Pointer è uno strumento di supporto tecnico.
 
-# Limiti d'uso
+La precisione dei risultati dipende da fonti che non sono interamente controllabili dall'app: GPS, magnetometro, giroscopio e altri sensori del telefono, calibrazione del dispositivo, interferenze locali, qualità dei dati altimetrici, connettività e disponibilità dei servizi esterni.
 
-GPS Pointer è uno strumento di supporto.
+Le analisi di Copertura e Punto Punto sono simulazioni basate sui dati disponibili e sui parametri inseriti. Non costituiscono una misura radio reale né una certificazione del collegamento.
 
-GPS, sensori del telefono, servizi cartografici, dati altimetrici e dati meteo possono essere soggetti a errori, ritardi o indisponibilità.
+Le informazioni meteo e radar sono fornite da servizi terzi.
 
-Le funzioni **Azimuth** e **AR** sono esplicitamente sperimentali e non sostituiscono strumenti professionali o certificati.
+**Azimuth e AR rimangono funzioni sperimentali**. Sono ancora oggetto di sviluppo e test sul campo e non devono essere considerate definitive, validate o equivalenti a strumenti professionali di puntamento.
 
----
+## Repository
 
-# Attribuzioni
+Il progetto è suddiviso in due componenti principali mantenuti separatamente:
+
+- App Android: `https://github.com/fraidotube/gps-pointer`
+- GPS Pointer Server: `https://github.com/fraidotube/gps-pointer-server`
+
+La separazione dei repository riflette anche la separazione architetturale: il client Android contiene interfaccia, logica locale e strumenti da campo; il server gestisce autenticazione, dati condivisi e servizi centralizzati.
+
+Le due componenti evolvono con versioni indipendenti. La versione indicata all'inizio di questo README si riferisce all'app Android.
+
+## Attribuzioni
 
 Comida utilizza dati OpenStreetMap.
 
@@ -361,10 +500,8 @@ Comida utilizza dati OpenStreetMap.
 
 I dati OpenStreetMap sono soggetti alla relativa licenza ODbL.
 
-Gli altri servizi e pacchetti mantengono le rispettive licenze e condizioni d'uso.
+MET Norway, RainViewer, Open-Meteo, Google Maps, GitHub e gli altri servizi o pacchetti utilizzati dal progetto mantengono le rispettive licenze, condizioni d'uso e politiche di disponibilità.
 
-## Comida - selettore orario
+---
 
-Dalla build 63, i campi Apertura e Chiusura usano un selettore orario a rotelle.
-Le ore sono selezionabili da 00 a 23 e i minuti sono limitati a 00, 15, 30 e 45.
-Il valore viene salvato nel formato HH:mm.
+Questo README descrive lo stato funzionale della release **GPS Pointer 2.7.0 / build 70**. Le funzioni sperimentali sono indicate esplicitamente come tali; la loro presenza nel repository non implica validazione sul campo o certificazione.
