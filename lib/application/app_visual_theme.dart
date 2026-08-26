@@ -450,40 +450,23 @@ final class VisualThemeSelectorCard extends StatelessWidget {
   final AppVisualThemeController controller;
 
   @override
-  Widget build(BuildContext context) {
-    final style = Theme.of(context).extension<GpsVisualStyle>();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(
-              Icons.palette_outlined,
-              color: style?.cyan ?? Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(width: 10),
-            Text('Tema grafico', style: Theme.of(context).textTheme.titleLarge),
-          ],
-        ),
-        const SizedBox(height: 6),
-        Text(
-          'Puoi cambiare l’aspetto dell’app senza modificare dati, '
-          'account o simulazioni. Su Android cambia anche l’icona launcher.',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        const SizedBox(height: 14),
-        for (final mode in AppVisualTheme.values) ...[
-          _ThemeOption(
-            mode: mode,
-            selected: controller.theme == mode,
-            busy: controller.busy,
-            onTap: () => controller.setTheme(mode),
-          ),
-          if (mode != AppVisualTheme.values.last) const SizedBox(height: 10),
-        ],
-      ],
-    );
-  }
+  Widget build(BuildContext context) => Column(
+    children: [
+      _ThemeOption(
+        mode: AppVisualTheme.classic,
+        selected: controller.theme == AppVisualTheme.classic,
+        busy: controller.busy,
+        onTap: () => controller.setTheme(AppVisualTheme.classic),
+      ),
+      const Divider(height: 1, indent: 52),
+      _ThemeOption(
+        mode: AppVisualTheme.radarPro,
+        selected: controller.theme == AppVisualTheme.radarPro,
+        busy: controller.busy,
+        onTap: () => controller.setTheme(AppVisualTheme.radarPro),
+      ),
+    ],
+  );
 }
 
 final class _ThemeOption extends StatelessWidget {
@@ -502,77 +485,31 @@ final class _ThemeOption extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final radar = mode == AppVisualTheme.radarPro;
-    final border = selected
-        ? (radar
-              ? const Color(0xFF57D3EC)
-              : Theme.of(context).colorScheme.primary)
-        : const Color(0xFF294452);
+    final selectedColor = radar
+        ? const Color(0xFF57D3EC)
+        : Theme.of(context).colorScheme.primary;
 
-    return InkWell(
-      onTap: busy ? null : onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: border, width: selected ? 1.6 : 1),
-          gradient: radar
-              ? const LinearGradient(
-                  colors: [Color(0xFF123448), Color(0xFF081722)],
-                )
-              : null,
-          color: radar ? null : const Color(0xFF10232E),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 58,
-              height: 58,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
-                color: radar
-                    ? const Color(0xFF0A2131)
-                    : const Color(0xFF0B1B24),
-                border: Border.all(
-                  color: radar
-                      ? const Color(0xFF2A7186)
-                      : const Color(0xFF294452),
-                ),
-              ),
-              child: Icon(
-                radar ? Icons.radar : Icons.explore_outlined,
-                color: radar
-                    ? const Color(0xFFFFA026)
-                    : const Color(0xFF19A7C4),
-                size: 31,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    mode.label,
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    mode.description,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Icon(
-              selected ? Icons.check_circle : Icons.radio_button_unchecked,
-              color: selected ? border : const Color(0xFF617D89),
-            ),
-          ],
+    return ListTile(
+      dense: true,
+      enabled: !busy,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      leading: Icon(
+        radar ? Icons.radar : Icons.explore_outlined,
+        size: 23,
+        color: selected ? selectedColor : null,
+      ),
+      title: Text(
+        mode.label,
+        style: TextStyle(
+          fontWeight: selected ? FontWeight.w800 : FontWeight.w700,
         ),
       ),
+      trailing: Icon(
+        selected ? Icons.check_circle : Icons.radio_button_unchecked,
+        color: selected ? selectedColor : const Color(0xFF617D89),
+        size: 22,
+      ),
+      onTap: busy ? null : onTap,
     );
   }
 }
