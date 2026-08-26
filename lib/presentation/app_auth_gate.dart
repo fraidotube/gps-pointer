@@ -47,7 +47,7 @@ final class _AuthBrand extends StatelessWidget {
     alignment: Alignment.center,
     child: Image(
       image: AssetImage('asset/gps_pointer_wordmark.png'),
-      width: 92,
+      width: 128,
       filterQuality: FilterQuality.high,
     ),
   );
